@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Fitso Server Monitor</title>
+  <style>
+    :root {
+      --bg: #0b1120;
+      --card: #151e32;
+      --card-2: #1e293b;
+      --text: #e2e8f0;
+      --muted: #94a3b8;
+      --accent: #38bdf8;
+      --good: #22c55e;
+      --warn: #eab308;
+      --bad: #ef4444;
+      --border: #334155;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+    }
+    header {
+      padding: 1.25rem 1.5rem;
+      background: var(--card);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    header h1 { margin: 0; font-size: 1.25rem; }
+    nav {
+      display: flex;
+      gap: 0.5rem;
+      padding: 0.75rem 1.5rem;
+      background: var(--card);
+      border-bottom: 1px solid var(--border);
+      overflow-x: auto;
+    }
+    nav button {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 0.5rem 1rem;
+      border-radius: 0.375rem;
+      cursor: pointer;
+      font-size: 0.9rem;
+      white-space: nowrap;
+    }
+    nav button.active { background: var(--accent); color: #000; border-color: var(--accent); }
+    main { padding: 1.5rem; max-width: 1200px; margin: 0 auto; }
+    .tab { display: none; }
+    .tab.active { display: block; }
+    .grid { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+    .card {
+      background: var(--card-2);
+      border: 1px solid var(--border);
+      border-radius: 0.75rem;
+      padding: 1rem;
+    }
+    .card h3 { margin: 0 0 0.75rem; font-size: 0.9rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+    .big { font-size: 2rem; font-weight: 700; margin: 0.25rem 0; }
+    .small { color: var(--muted); font-size: 0.85rem; }
+    .bar-wrap { background: #334155; border-radius: 0.25rem; height: 0.75rem; margin-top: 0.5rem; overflow: hidden; }
+    .bar { height: 100%; background: var(--accent); width: 0%; transition: width 0.3s; }
+    .bar.warn { background: var(--warn); }
+    .bar.bad { background: var(--bad); }
+    .row { display: flex; align-items: baseline; justify-content: space-between; margin: 0.25rem 0; gap: 0.5rem; }
+    .row .big { font-size: 1.35rem; white-space: nowrap; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+    th, td { padding: 0.6rem 0.5rem; text-align: left; border-bottom: 1px solid var(--border); }
+    th { color: var(--muted); font-weight: 600; }
+    .status {
+      display: inline-block;
+      padding: 0.15rem 0.5rem;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    .status.running, .status.success, .status.active { background: rgba(34,197,94,0.15); color: var(--good); }
+    .status.exited, .status.queued, .status.pending { background: rgba(234,179,8,0.15); color: var(--warn); }
+    .status.failed, .status.inactive, .status.error { background: rgba(239,68,68,0.15); color: var(--bad); }
+    .status.paused, .status.restarting { background: rgba(56,189,248,0.15); color: var(--accent); }
+    .project { margin-bottom: 1rem; }
+    .project h4 { margin: 0 0 0.5rem; color: var(--accent); }
+    .services { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+    .tag { background: var(--card); border: 1px solid var(--border); border-radius: 0.375rem; padding: 0.4rem 0.6rem; font-size: 0.85rem; }
+    .spinner { display: inline-block; width: 1rem; height: 1rem; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 1s linear infinite; vertical-align: middle; margin-right: 0.5rem; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .section { margin-bottom: 2rem; }
+    .section h2 { margin: 0 0 1rem; font-size: 1.1rem; }
+    button.action { background: var(--accent); color: #000; border: 0; padding: 0.6rem 1.2rem; border-radius: 0.375rem; font-weight: 600; cursor: pointer; }
+    button.action:disabled { opacity: 0.6; cursor: not-allowed; }
+    .error { color: var(--bad); }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Fitso Server Monitor</h1>
+    <span class="small" id="clock">--:--:--</span>
+  </header>
+  <nav id="tabs">
+    <button data-tab="overview" class="active">Overview</button>
+    <button data-tab="containers">Containers</button>
+    <button data-tab="projects">Projects</button>
+    <button data-tab="services">Services</button>
+    <button data-tab="github">GitHub / CI</button>
+  </nav>
+
+  <main>
+    <section id="overview" class="tab active">
+      <div class="grid">
+        <div class="card">
+          <h3>CPU Usage</h3>
+          <div class="big" id="cpu-value">--%</div>
+          <div class="small" id="cpu-meta">-- cores / load --</div>
+          <div class="bar-wrap"><div class="bar" id="cpu-bar"></div></div>
+        </div>
+        <div class="card">
+          <h3>Memory</h3>
+          <div class="big" id="mem-value">--</div>
+          <div class="small" id="mem-meta">-- / --</div>
+          <div class="bar-wrap"><div class="bar" id="mem-bar"></div></div>
+        </div>
+        <div class="card">
+          <h3>Disk (Root)</h3>
+          <div class="big" id="disk-value">--</div>
+          <div class="small" id="disk-meta">-- / --</div>
+          <div class="bar-wrap"><div class="bar" id="disk-bar"></div></div>
+        </div>
+        <div class="card">
+          <h3>Uptime</h3>
+          <div class="big" id="uptime-value">--</div>
+          <div class="small">time since boot</div>
+        </div>
+      </div>
+
+      <div class="section" style="margin-top: 1.5rem;">
+        <h2>Live Network</h2>
+        <div id="network-list" class="grid"></div>
+      </div>
+
+      <div class="section" style="margin-top: 1.5rem;">
+        <h2>Internet Speed Test</h2>
+        <button class="action" id="speed-btn">Run Speed Test</button>
+        <div id="speed-result" style="margin-top: 1rem;"></div>
+      </div>
+    </section>
+
+    <section id="containers" class="tab">
+      <h2>Docker Containers</h2>
+      <div id="containers-table"></div>
+    </section>
+
+    <section id="projects" class="tab">
+      <h2>Project-wise Containers</h2>
+      <div id="projects-list"></div>
+    </section>
+
+    <section id="services" class="tab">
+      <h2>System Services</h2>
+      <div id="services-table"></div>
+    </section>
+
+    <section id="github" class="tab">
+      <div class="section">
+        <h2>Pull Requests</h2>
+        <div id="prs-table"></div>
+      </div>
+      <div class="section">
+        <h2>CI / CD Runs</h2>
+        <div id="runs-table"></div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const $ = id => document.getElementById(id);
+    const api = path => fetch(path).then(r => r.json()).catch(e => ({ error: e.message }));
+
+    function formatBytes(bytes) {
+      if (!bytes) return '0 B';
+      const k = 1024;
+      const s = ['B','KB','MB','GB','TB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      return `${(bytes / Math.pow(k, i)).toFixed(2)} ${s[Math.min(i, s.length-1)]}`;
+    }
+    function formatBits(bps) {
+      if (!bps) return '0 bps';
+      const k = 1000;
+      const s = ['bps','Kbps','Mbps','Gbps'];
+      const i = Math.floor(Math.log(bps) / Math.log(k));
+      return `${(bps / Math.pow(k, i)).toFixed(2)} ${s[Math.min(i, s.length-1)]}`;
+    }
+    function uptimeString(seconds) {
+      const d = Math.floor(seconds / 86400);
+      const h = Math.floor((seconds % 86400) / 3600);
+      const m = Math.floor((seconds % 3600) / 60);
+      return `${d}d ${h}h ${m}m`;
+    }
+    function setBar(id, percent) {
+      const el = $(id);
+      el.style.width = `${Math.min(100, Math.max(0, percent))}%`;
+      el.className = 'bar' + (percent > 85 ? ' bad' : percent > 60 ? ' warn' : '');
+    }
+
+    function statusClass(state) {
+      const s = String(state).toLowerCase();
+      if (['running','active','success','completed','merged','open'].some(x => s.includes(x))) return 'running';
+      if (['paused','restarting','queued','pending','in_progress'].some(x => s.includes(x))) return 'exited';
+      if (['failed','inactive','dead','error','failure','closed'].some(x => s.includes(x))) return 'failed';
+      return '';
+    }
+
+    function setTab(tab) {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+      $(tab).classList.add('active');
+      document.querySelector(`nav button[data-tab="${tab}"]`).classList.add('active');
+      window.location.hash = tab;
+    }
+    document.getElementById('tabs').addEventListener('click', e => {
+      if (e.target.dataset.tab) setTab(e.target.dataset.tab);
+    });
+    if (window.location.hash) setTab(window.location.hash.slice(1));
+
+    async function loadOverview() {
+      const data = await api('/api/monitor/overview');
+      if (data.error) return;
+      const cpu = data.cpu || {};
+      $('cpu-value').textContent = `${(cpu.usage || 0).toFixed(1)}%`;
+      $('cpu-meta').textContent = `${cpu.cores || '--'} cores / load ${(cpu.load || []).map(l => l.toFixed(2)).join(', ')}`;
+      setBar('cpu-bar', cpu.usage || 0);
+
+      const mem = data.memory || {};
+      $('mem-value').textContent = `${mem.percent?.toFixed(1) || '--'}%`;
+      $('mem-meta').textContent = `${mem.usedHuman || '--'} / ${mem.totalHuman || '--'}`;
+      setBar('mem-bar', mem.percent || 0);
+
+      const disk = data.disk || {};
+      $('disk-value').textContent = `${disk.percent?.toFixed(1) || '--'}%`;
+      $('disk-meta').textContent = `${disk.usedHuman || '--'} / ${disk.totalHuman || '--'}`;
+      setBar('disk-bar', disk.percent || 0);
+
+      $('uptime-value').textContent = uptimeString(data.uptime || 0);
+    }
+
+    async function loadNetwork() {
+      const data = await api('/api/monitor/network');
+      const list = $('network-list');
+      if (data.error || !data.interfaces) {
+        list.innerHTML = `<div class="card error">${data.error || 'No network data'}</div>`;
+        return;
+      }
+      list.innerHTML = data.interfaces.map(iface => `
+        <div class="card">
+          <h3>${iface.name}</h3>
+          <div class="row"><span>Download</span><span class="big">${iface.rxSpeedHuman}</span></div>
+          <div class="row"><span>Upload</span><span class="big">${iface.txSpeedHuman}</span></div>
+          <div class="small">RX total ${formatBytes(iface.rxTotal)} / TX total ${formatBytes(iface.txTotal)}</div>
+        </div>
+      `).join('');
+    }
+
+    async function loadContainers() {
+      const data = await api('/api/monitor/containers');
+      const root = $('containers-table');
+      if (data.error) { root.innerHTML = `<div class="error">${data.error}</div>`; return; }
+      if (!Array.isArray(data) || data.length === 0) { root.innerHTML = '<p>No running containers.</p>'; return; }
+      root.innerHTML = `<table><thead><tr>
+        <th>Name</th><th>Image</th><th>Status</th><th>Project</th><th>Service</th><th>CPU</th><th>Memory</th><th>Net I/O</th><th>PIDs</th>
+      </tr></thead><tbody>` + data.map(c => `
+        <tr>
+          <td>${c.name}</td>
+          <td>${c.image}</td>
+          <td><span class="status ${statusClass(c.state)}">${c.state}</span></td>
+          <td>${c.project || '-'}</td>
+          <td>${c.service || '-'}</td>
+          <td>${c.cpu?.toFixed(2) || '--'}%</td>
+          <td>${c.memoryUsage || c.memory?.toFixed(2)+'%' || '-'}</td>
+          <td>${c.netIO || '-'}</td>
+          <td>${c.pids}</td>
+        </tr>
+      `).join('') + '</tbody></table>';
+    }
+
+    async function loadProjects() {
+      const data = await api('/api/monitor/projects');
+      const root = $('projects-list');
+      if (data.error) { root.innerHTML = `<div class="error">${data.error}</div>`; return; }
+      const keys = Object.keys(data).sort();
+      if (keys.length === 0) { root.innerHTML = '<p>No project information. Add Docker compose labels to containers.</p>'; return; }
+      root.innerHTML = keys.map(key => {
+        const containers = data[key];
+        return `<div class="card project">
+          <h4>${key}</h4>
+          <div class="services">${containers.map(c => `
+            <div class="tag" title="${c.image}">
+              <span class="status ${statusClass(c.state)}">${c.state}</span>
+              ${c.service || c.name} (${c.cpu?.toFixed(1) || '--'}% CPU, ${c.memory?.toFixed(1) || '--'}% Mem)
+            </div>
+          `).join('')}</div>
+        </div>`;
+      }).join('');
+    }
+
+    async function loadServices() {
+      const data = await api('/api/monitor/services');
+      const root = $('services-table');
+      if (data.error) { root.innerHTML = `<div class="error">${data.error}</div>`; return; }
+      if (!Array.isArray(data) || data.length === 0) { root.innerHTML = '<p>No services.</p>'; return; }
+      root.innerHTML = `<table><thead><tr><th>Unit</th><th>State</th><th>Sub</th><th>Description</th></tr></thead><tbody>` +
+        data.map(s => `<tr>
+          <td>${s.unit}</td>
+          <td><span class="status ${statusClass(s.active)}">${s.active}</span></td>
+          <td>${s.sub}</td>
+          <td>${s.description}</td>
+        </tr>`).join('') + '</tbody></table>';
+    }
+
+    async function loadGithub() {
+      const data = await api('/api/monitor/github');
+      const prs = $('prs-table');
+      if (data.error) prs.innerHTML = `<div class="error">${data.error}</div>`;
+      else if (!data.prs.length) prs.innerHTML = '<p>No pull requests.</p>';
+      else prs.innerHTML = `<table><thead><tr><th>#</th><th>Title</th><th>Branch</th><th>State</th><th>Checks</th></tr></thead><tbody>` +
+        data.prs.map(p => `<tr>
+          <td><a href="${p.url}" target="_blank">#${p.number}</a></td>
+          <td>${p.title}</td>
+          <td>${p.headRefName} → ${p.baseRefName}</td>
+          <td><span class="status ${statusClass(p.state)}">${p.state}</span></td>
+          <td>${(p.statusCheckRollup || []).length || '—'}</td>
+        </tr>`).join('') + '</tbody></table>';
+
+      const runs = $('runs-table');
+      if (data.error) runs.innerHTML = '';
+      else if (!data.runs.length) runs.innerHTML = '<p>No CI/CD runs.</p>';
+      else runs.innerHTML = `<table><thead><tr><th>Workflow</th><th>Branch</th><th>Event</th><th>Status</th></tr></thead><tbody>` +
+        data.runs.map(r => `<tr>
+          <td><a href="${r.url}" target="_blank">${r.name}</a></td>
+          <td>${r.headBranch}</td>
+          <td>${r.event}</td>
+          <td><span class="status ${statusClass(r.conclusion || r.status)}">${r.conclusion || r.status}</span></td>
+        </tr>`).join('') + '</tbody></table>';
+    }
+
+    $('speed-btn').addEventListener('click', async () => {
+      const btn = $('speed-btn');
+      const out = $('speed-result');
+      btn.disabled = true;
+      out.innerHTML = '<span class="spinner"></span> Running speed test (~10s)…';
+      try {
+        const r = await fetch('/api/monitor/speedtest', { method: 'POST' });
+        const data = await r.json();
+        if (data.error) out.innerHTML = `<span class="error">${data.error}</span>`;
+        else out.innerHTML = `<div class="card"><div class="big">${data.speedMbps?.toFixed(2)} Mbps</div><div class="small">${data.duration?.toFixed(2)}s · ${data.source}</div></div>`;
+      } catch (e) {
+        out.innerHTML = `<span class="error">${e.message}</span>`;
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    function tickClock() {
+      const now = new Date();
+      $('clock').textContent = now.toLocaleTimeString();
+    }
+
+    async function poll() {
+      await Promise.all([loadOverview(), loadNetwork()]);
+    }
+
+    loadContainers();
+    loadProjects();
+    loadServices();
+    loadGithub();
+    poll();
+    setInterval(poll, 3000);
+    setInterval(loadNetwork, 1000);
+    setInterval(loadContainers, 5000);
+    setInterval(loadProjects, 5000);
+    setInterval(loadServices, 30000);
+    setInterval(loadGithub, 60000);
+    setInterval(tickClock, 1000);
+  </script>
+</body>
+</html>

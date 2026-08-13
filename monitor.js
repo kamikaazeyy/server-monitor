@@ -1,9 +1,12 @@
 const { execFile } = require('child_process');
 const fs = require('fs/promises');
 const os = require('os');
+const path = require('path');
+const fastifyStatic = require('@fastify/static');
 
 const MONITOR_REPO = process.env.MONITOR_REPO || 'kamikaazeyy/fitso';
 const CF_SPEED_URL = 'https://speed.cloudflare.com/__down?bytes=25000000';
+const DIST_DIR = path.join(__dirname, 'client', 'dist');
 
 function humanBytes(bytes, decimals = 2) {
   if (bytes === 0) return '0 B';
@@ -26,9 +29,9 @@ function percent(value, total) {
   return Math.min(100, Math.max(0, (value / total) * 100));
 }
 
-async function readFileFirstLine(path) {
+async function readFileFirstLine(filePath) {
   try {
-    const data = await fs.readFile(path, 'utf8');
+    const data = await fs.readFile(filePath, 'utf8');
     return data.split('\n')[0];
   } catch {
     return null;
@@ -221,34 +224,59 @@ async function getContainers() {
 }
 
 function groupByProject(containers) {
-  if (Array.isArray(containers) === false) return {};
+  if (!Array.isArray(containers)) return [];
   const projects = {};
   for (const c of containers) {
     const key = c.project || 'ungrouped';
     if (!projects[key]) projects[key] = [];
     projects[key].push(c);
   }
-  return projects;
+  return Object.entries(projects).map(([project, list]) => ({ project, containers: list }));
 }
 
 async function getServices() {
   try {
     const out = await runCommand('systemctl', ['list-units', '--type=service', '--state=active', '--state=failed', '--no-pager', '--plain', '-o', 'json']);
-    return JSON.parse(out || '[]');
+    const units = JSON.parse(out || '[]');
+    return units.map(u => ({
+      unit: u.unit,
+      state: u.active,
+      sub: u.sub,
+      description: u.description
+    }));
   } catch (err) {
     return { error: err.message };
   }
 }
 
 async function getGitHub() {
-  const result = { prs: [], runs: [], error: null };
+  const result = { repo: MONITOR_REPO, pulls: [], runs: [], error: null };
   try {
     const [prOut, runOut] = await Promise.all([
       runCommand('gh', ['pr', 'list', '--repo', MONITOR_REPO, '--state', 'all', '--limit', '20', '--json', 'number,title,state,author,headRefName,baseRefName,mergeStateStatus,url,createdAt,statusCheckRollup']).catch(() => '[]'),
       runCommand('gh', ['run', 'list', '--repo', MONITOR_REPO, '--limit', '20', '--json', 'name,status,conclusion,event,headBranch,createdAt,url,displayTitle']).catch(() => '[]')
     ]);
-    result.prs = JSON.parse(prOut || '[]');
-    result.runs = JSON.parse(runOut || '[]');
+    const prs = JSON.parse(prOut || '[]');
+    const runs = JSON.parse(runOut || '[]');
+
+    result.pulls = prs.map(pr => ({
+      number: pr.number,
+      title: pr.title,
+      branch: `${pr.headRefName} → ${pr.baseRefName}`,
+      state: pr.state,
+      status: pr.mergeStateStatus,
+      checks: Array.isArray(pr.statusCheckRollup) ? pr.statusCheckRollup.length : '—',
+      url: pr.url
+    }));
+
+    result.runs = runs.map(run => ({
+      name: run.name,
+      branch: run.headBranch,
+      event: run.event,
+      status: run.conclusion || run.status,
+      url: run.url,
+      updatedAt: run.createdAt
+    }));
   } catch (err) {
     result.error = err.message;
   }
@@ -276,12 +304,21 @@ async function runSpeedTest() {
 
 let cpuSnapshot = { usage: 0, cores: 0, load: [0, 0, 0] };
 let netSnapshot = { interfaces: [], timestamp: 0 };
+const history = [];
 
 async function refreshSnapshots() {
   try {
     cpuSnapshot = await getCpuUsage();
   } catch (e) {
     cpuSnapshot.error = e.message;
+  }
+
+  let memoryPercent = 0;
+  try {
+    const memory = await getMemory();
+    memoryPercent = memory.percent || 0;
+  } catch {
+    // ignore
   }
 
   try {
@@ -311,6 +348,17 @@ async function refreshSnapshots() {
         interfaces: stats.map(s => ({ name: s.name, rxSpeed: 0, txSpeed: 0, rxTotal: s.rx, txTotal: s.tx }))
       };
     }
+
+    const totalRx = netSnapshot.interfaces.reduce((sum, i) => sum + (i.rxSpeed || 0), 0);
+    const totalTx = netSnapshot.interfaces.reduce((sum, i) => sum + (i.txSpeed || 0), 0);
+    history.push({
+      time: now,
+      cpu: cpuSnapshot.usage || 0,
+      memory: memoryPercent,
+      networkRx: totalRx,
+      networkTx: totalTx
+    });
+    if (history.length > 120) history.shift();
   } catch {
     // ignore
   }
@@ -320,15 +368,14 @@ setInterval(refreshSnapshots, 1000);
 refreshSnapshots();
 
 module.exports = async function monitorPlugin(app, opts) {
+  await app.register(fastifyStatic, {
+    root: DIST_DIR,
+    prefix: '/',
+    wildcard: true
+  });
+
   app.get('/monitor', async (request, reply) => {
-    const path = require('path');
-    const file = path.join(__dirname, 'monitor.html');
-    try {
-      const html = await fs.readFile(file, 'utf8');
-      return reply.type('text/html').send(html);
-    } catch (err) {
-      return reply.code(500).send({ error: 'Failed to load dashboard' });
-    }
+    return reply.sendFile('index.html');
   });
 
   app.get('/api/monitor/overview', async (request, reply) => {
@@ -353,18 +400,26 @@ module.exports = async function monitorPlugin(app, opts) {
     return { interfaces: enriched, timestamp: netSnapshot.timestamp };
   });
 
+  app.get('/api/monitor/history', async (request, reply) => {
+    return history;
+  });
+
   app.get('/api/monitor/containers', async (request, reply) => {
-    return getContainers();
+    const data = await getContainers();
+    if (data.error) return reply.code(500).send({ error: data.error });
+    return data;
   });
 
   app.get('/api/monitor/projects', async (request, reply) => {
     const containers = await getContainers();
-    if (containers.error) return reply.code(500).send(containers);
+    if (containers.error) return reply.code(500).send({ error: containers.error });
     return groupByProject(containers);
   });
 
   app.get('/api/monitor/services', async (request, reply) => {
-    return getServices();
+    const data = await getServices();
+    if (data.error) return reply.code(500).send({ error: data.error });
+    return data;
   });
 
   app.get('/api/monitor/github', async (request, reply) => {
@@ -373,5 +428,12 @@ module.exports = async function monitorPlugin(app, opts) {
 
   app.post('/api/monitor/speedtest', async (request, reply) => {
     return runSpeedTest();
+  });
+
+  app.setNotFoundHandler(async (request, reply) => {
+    if (request.url.startsWith('/api')) {
+      return reply.code(404).send({ error: 'Not found' });
+    }
+    return reply.sendFile('index.html');
   });
 };

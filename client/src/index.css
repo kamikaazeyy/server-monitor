@@ -1,0 +1,60 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light dark;
+  font-family: 'Inter', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  @apply bg-bg text-ink dark:bg-bg-dark dark:text-white;
+  transition: background-color 150ms ease, color 150ms ease;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #d4d4d8;
+  border-radius: 3px;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: #3f3f46;
+}
+
+@layer components {
+  .card {
+    @apply bg-surface dark:bg-surface-dark rounded-3xl border border-black/5 dark:border-white/10 shadow-sm;
+  }
+
+  .pill {
+    @apply inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium transition-colors;
+  }
+
+  .pill-accent {
+    @apply bg-accent text-ink;
+  }
+
+  .pill-muted {
+    @apply bg-black/5 dark:bg-white/10 text-muted dark:text-gray-300;
+  }
+}

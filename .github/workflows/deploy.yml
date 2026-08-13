@@ -1,0 +1,47 @@
+name: Deploy Monitoring Dashboard
+
+on:
+  push:
+    branches: [master]
+
+concurrency:
+  group: deploy
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Install and build client
+        run: |
+          cd client
+          npm ci
+          npm run build
+
+      - name: Deploy to /opt/monitoring-dashboard
+        run: |
+          mkdir -p /opt/monitoring-dashboard
+          rsync -av --delete \
+            --exclude='.git' \
+            --exclude='.github' \
+            --exclude='node_modules' \
+            --exclude='client/node_modules' \
+            --exclude='client/src' \
+            ./ /opt/monitoring-dashboard/
+          cd /opt/monitoring-dashboard
+          npm ci --production
+
+      - name: Restart service
+        run: sudo systemctl restart monitoring-dashboard

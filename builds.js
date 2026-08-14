@@ -5,7 +5,7 @@ const https = require('https');
 const http = require('http');
 const express = require('express');
 
-const BUILDS_DIR = process.env.BUILDS_DIR || '/opt/monitoring-dashboard/builds';
+const BUILDS_DIR = process.env.BUILDS_DIR || '/opt/monitoring-builds';
 const BUILDS_KEEP = parseInt(process.env.BUILDS_KEEP || '10', 10);
 const FITSO_MOBILE_DIR = process.env.FITSO_MOBILE_DIR || '/home/kamikaazeyy/fitso/mobile';
 const EAS_TOKEN = process.env.EXPO_TOKEN;
@@ -111,8 +111,9 @@ function runEas(args, options = {}) {
       ...options,
     }, (err, stdout, stderr) => {
       if (err) {
-        const message = stderr?.trim() || err.message;
-        reject(new Error(message));
+        const stderrTrim = stderr?.trim();
+        const message = stderrTrim || err.message;
+        reject(new Error(`build:view failed: ${message} (exit code ${err.code || '?'})`));
         return;
       }
       resolve(stdout.trim());
@@ -279,7 +280,8 @@ function pollBuildStatus(io, buildId) {
     }
   };
 
-  setTimeout(poll, POLL_INTERVAL_MS);
+  // First poll after 45s — give EAS time to register the build
+  setTimeout(poll, 45000);
 }
 
 // --- Pruning -----------------------------------------------------------------

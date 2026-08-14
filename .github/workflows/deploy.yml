@@ -101,7 +101,7 @@ jobs:
           ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
             -p ${{ secrets.SERVER_SSH_PORT || '22' }} \
             ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} \
-            'set -e && cd /tmp/monitor-deploy && tar xzf deploy-bundle.tar.gz -C /opt/monitoring-dashboard && sudo systemctl restart monitoring-dashboard && sleep 2 && systemctl is-active monitoring-dashboard && echo "Deploy complete"'
+            'set -e && cd /tmp/monitor-deploy && cp /opt/monitoring-dashboard/.env /tmp/monitor-deploy/.env.bak 2>/dev/null || true && rm -rf /opt/monitoring-dashboard/* && tar xzf deploy-bundle.tar.gz -C /opt/monitoring-dashboard && cp /tmp/monitor-deploy/.env.bak /opt/monitoring-dashboard/.env 2>/dev/null || true && sudo systemctl restart monitoring-dashboard && sleep 2 && systemctl is-active monitoring-dashboard && echo "Deploy complete"'
 
       - name: Cleanup
         if: always()

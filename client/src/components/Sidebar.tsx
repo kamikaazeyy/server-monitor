@@ -5,11 +5,12 @@ import {
   List,
   GitBranch,
   Zap,
+  Terminal,
   type LucideIcon,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 
-type Tab = 'overview' | 'containers' | 'projects' | 'services' | 'github' | 'speed';
+type Tab = 'overview' | 'containers' | 'projects' | 'services' | 'github' | 'speed' | 'terminal';
 
 interface SidebarProps {
   active: Tab;
@@ -23,6 +24,7 @@ const items: { id: Tab; icon: LucideIcon; label: string }[] = [
   { id: 'services', icon: List, label: 'Services' },
   { id: 'github', icon: GitBranch, label: 'GitHub / CI' },
   { id: 'speed', icon: Zap, label: 'Speed Test' },
+  { id: 'terminal', icon: Terminal, label: 'Terminal' },
 ];
 
 export default function Sidebar({ active, onChange }: SidebarProps) {

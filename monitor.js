@@ -1,12 +1,11 @@
 const { execFile } = require('child_process');
 const fs = require('fs/promises');
 const os = require('os');
-const path = require('path');
-const fastifyStatic = require('@fastify/static');
+const express = require('express');
 
+const router = express.Router();
 const MONITOR_REPO = process.env.MONITOR_REPO || 'kamikaazeyy/fitso';
 const CF_SPEED_URL = 'https://speed.cloudflare.com/__down?bytes=25000000';
-const DIST_DIR = path.join(__dirname, 'client', 'dist');
 
 function humanBytes(bytes, decimals = 2) {
   if (bytes === 0) return '0 B';
@@ -367,73 +366,75 @@ async function refreshSnapshots() {
 setInterval(refreshSnapshots, 1000);
 refreshSnapshots();
 
-module.exports = async function monitorPlugin(app, opts) {
-  await app.register(fastifyStatic, {
-    root: DIST_DIR,
-    prefix: '/',
-    wildcard: true
-  });
-
-  app.get('/monitor', async (request, reply) => {
-    return reply.sendFile('index.html');
-  });
-
-  app.get('/api/monitor/overview', async (request, reply) => {
+router.get('/api/monitor/overview', async (req, res) => {
+  try {
     const [memory, disk] = await Promise.all([getMemory(), getDisk()]);
-    return {
-      cpu: cpuSnapshot,
-      memory,
-      disk,
-      uptime: os.uptime()
-    };
-  });
+    res.json({ cpu: cpuSnapshot, memory, disk, uptime: os.uptime() });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
-  app.get('/api/monitor/network', async (request, reply) => {
-    const enriched = netSnapshot.interfaces
-      .filter(iface => iface.rxTotal + iface.txTotal > 0)
-      .sort((a, b) => (b.rxSpeed + b.txSpeed) - (a.rxSpeed + a.txSpeed))
-      .map(iface => ({
-        ...iface,
-        rxSpeedHuman: `${humanBits(iface.rxSpeed * 8)}/s`,
-        txSpeedHuman: `${humanBits(iface.txSpeed * 8)}/s`
-      }));
-    return { interfaces: enriched, timestamp: netSnapshot.timestamp };
-  });
+router.get('/api/monitor/network', async (req, res) => {
+  const enriched = netSnapshot.interfaces
+    .filter(iface => iface.rxTotal + iface.txTotal > 0)
+    .sort((a, b) => (b.rxSpeed + b.txSpeed) - (a.rxSpeed + a.txSpeed))
+    .map(iface => ({
+      ...iface,
+      rxSpeedHuman: `${humanBits(iface.rxSpeed * 8)}/s`,
+      txSpeedHuman: `${humanBits(iface.txSpeed * 8)}/s`
+    }));
+  res.json({ interfaces: enriched, timestamp: netSnapshot.timestamp });
+});
 
-  app.get('/api/monitor/history', async (request, reply) => {
-    return history;
-  });
+router.get('/api/monitor/history', (req, res) => {
+  res.json(history);
+});
 
-  app.get('/api/monitor/containers', async (request, reply) => {
+router.get('/api/monitor/containers', async (req, res) => {
+  try {
     const data = await getContainers();
-    if (data.error) return reply.code(500).send({ error: data.error });
-    return data;
-  });
+    if (data.error) return res.status(500).json({ error: data.error });
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
-  app.get('/api/monitor/projects', async (request, reply) => {
+router.get('/api/monitor/projects', async (req, res) => {
+  try {
     const containers = await getContainers();
-    if (containers.error) return reply.code(500).send({ error: containers.error });
-    return groupByProject(containers);
-  });
+    if (containers.error) return res.status(500).json({ error: containers.error });
+    res.json(groupByProject(containers));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
-  app.get('/api/monitor/services', async (request, reply) => {
+router.get('/api/monitor/services', async (req, res) => {
+  try {
     const data = await getServices();
-    if (data.error) return reply.code(500).send({ error: data.error });
-    return data;
-  });
+    if (data.error) return res.status(500).json({ error: data.error });
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
-  app.get('/api/monitor/github', async (request, reply) => {
-    return getGitHub();
-  });
+router.get('/api/monitor/github', async (req, res) => {
+  try {
+    res.json(await getGitHub());
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
-  app.post('/api/monitor/speedtest', async (request, reply) => {
-    return runSpeedTest();
-  });
+router.post('/api/monitor/speedtest', async (req, res) => {
+  try {
+    res.json(await runSpeedTest());
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
-  app.setNotFoundHandler(async (request, reply) => {
-    if (request.url.startsWith('/api')) {
-      return reply.code(404).send({ error: 'Not found' });
-    }
-    return reply.sendFile('index.html');
-  });
-};
+module.exports = router;

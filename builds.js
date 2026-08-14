@@ -113,12 +113,25 @@ function runEas(args, options = {}) {
       if (err) {
         const stderrTrim = stderr?.trim();
         const message = stderrTrim || err.message;
-        reject(new Error(`build:view failed: ${message} (exit code ${err.code || '?'})`));
+        reject(new Error(`eas ${args[0]} failed: ${message} (exit code ${err.code || '?'})`));
         return;
       }
       resolve(stdout.trim());
     });
   });
+}
+
+function normalizeBuildStatus(status) {
+  return String(status || 'unknown').trim().toLowerCase().replace(/_/g, ' ');
+}
+
+function parseEasBuild(raw) {
+  const parsed = JSON.parse(raw);
+  const build = Array.isArray(parsed) ? parsed[0] : parsed?.build || parsed;
+  if (!build || typeof build !== 'object' || !build.id) {
+    throw new Error('EAS returned an invalid build JSON response');
+  }
+  return build;
 }
 
 // --- Socket.io emit helpers --------------------------------------------------
@@ -217,8 +230,8 @@ function pollBuildStatus(io, buildId) {
 
     try {
       const raw = await runEas(['build:view', buildId, '--json', '--non-interactive']);
-      const b = JSON.parse(raw);
-      const status = (b.status || '').toLowerCase();
+      const b = parseEasBuild(raw);
+      const status = normalizeBuildStatus(b.status);
 
       if (status !== lastStatus) {
         lastStatus = status;
@@ -314,7 +327,7 @@ function mapEasBuild(b, localEntry) {
     id: b.id,
     profile: b.buildProfile,
     platform: b.platform,
-    status: b.status,
+    status: normalizeBuildStatus(b.status),
     distribution: b.distribution,
     buildType: b.buildType,
     sdkVersion: b.sdkVersion,
@@ -338,7 +351,7 @@ function mapLocalEntry(e) {
     id: e.easBuildId,
     profile: e.profile,
     platform: 'android',
-    status: e.status,
+    status: normalizeBuildStatus(e.status),
     distribution: '',
     buildType: '',
     sdkVersion: '',
@@ -423,7 +436,7 @@ module.exports = function createBuildsRouter(io) {
     }
     try {
       const raw = await runEas(['build:view', id, '--json', '--non-interactive']);
-      const b = JSON.parse(raw);
+      const b = parseEasBuild(raw);
       const localEntry = readIndex().find(e => e.easBuildId === id);
       res.json(mapEasBuild(b, localEntry));
     } catch (err) {
@@ -480,8 +493,8 @@ module.exports = function createBuildsRouter(io) {
     }
     try {
       const raw = await runEas(['build:view', id, '--json', '--non-interactive']);
-      const b = JSON.parse(raw);
-      if ((b.status || '').toLowerCase() !== 'finished') {
+      const b = parseEasBuild(raw);
+      if (normalizeBuildStatus(b.status) !== 'finished') {
         return res.status(400).json({ error: `Build status is ${b.status}, must be finished to mirror` });
       }
       const artifactUrl = b.artifacts?.artifactUrl;
@@ -597,18 +610,10 @@ module.exports = function createBuildsRouter(io) {
 
       let build;
       try {
-        const builds = JSON.parse(stdout || '[]');
-        build = Array.isArray(builds) ? builds[0] : builds;
-      } catch {
+        build = parseEasBuild(stdout);
+      } catch (err) {
         if (!res.headersSent) {
-          res.status(500).json({ error: 'Failed to parse EAS build output' });
-        }
-        return;
-      }
-
-      if (!build) {
-        if (!res.headersSent) {
-          res.status(500).json({ error: 'No build was created' });
+          res.status(500).json({ error: `Failed to parse EAS build output: ${err.message}` });
         }
         return;
       }
@@ -618,13 +623,13 @@ module.exports = function createBuildsRouter(io) {
         emitLog(io, build.id, line, 'stderr');
       }
       emitLog(io, build.id, `Build triggered: ${build.id} (profile: ${profile})`, 'stdout');
-      emitStatus(io, build.id, build.status || 'new');
+      emitStatus(io, build.id, normalizeBuildStatus(build.status));
 
       if (!res.headersSent) {
         res.json({
           id: build.id,
           profile: build.buildProfile,
-          status: build.status,
+          status: normalizeBuildStatus(build.status),
           message: 'Build started. Logs are streaming via socket.io.',
         });
       }

@@ -18,8 +18,12 @@ function timeAgo(iso: string): string {
   return `${Math.floor(hrs / 24)}d ago`;
 }
 
+function normalizeBuildStatus(status: string): string {
+  return status.toLowerCase().replace(/_/g, ' ');
+}
+
 function isBuildActive(status: string): boolean {
-  const s = status.toLowerCase();
+  const s = normalizeBuildStatus(status);
   return s === 'new' || s === 'in queue' || s === 'in progress' || s === 'pending' || s === 'downloading' || s === 'mirroring';
 }
 
@@ -239,6 +243,36 @@ export default function FitsoBuilds() {
   const [qrBuildId, setQrBuildId] = useState<string | null>(null);
   const [expandedLogId, setExpandedLogId] = useState<string | null>(null);
   const [progressMap, setProgressMap] = useState<Record<string, { received: number; total: number }>>({});
+  const [liveBuilds, setLiveBuilds] = useState<Record<string, { status: string; sizeBytes?: number }>>({});
+  const [pendingBuilds, setPendingBuilds] = useState<EasBuild[]>([]);
+  const buildSocketRef = useRef<ReturnType<typeof io> | null>(null);
+
+  // Listen for optimistic build additions
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const build = (e as CustomEvent<EasBuild>).detail;
+      setPendingBuilds((prev) => [build, ...prev.filter(b => b.id !== build.id)]);
+    };
+    window.addEventListener('build:optimistic', handler);
+    return () => window.removeEventListener('build:optimistic', handler);
+  }, []);
+
+  // Merge pending builds with fetched builds, dropping ones that are now in the fetched list
+  const listedBuilds = [
+    ...pendingBuilds.filter(p => !builds?.some(b => b.id === p.id)),
+    ...(builds ?? []),
+  ];
+  const allBuilds = listedBuilds.map((build) => {
+    const liveBuild = liveBuilds[build.id];
+    if (!liveBuild) return build;
+    return {
+      ...build,
+      status: liveBuild.status,
+      localApkAvailable: build.localApkAvailable || liveBuild.status === 'downloaded',
+      sizeBytes: liveBuild.sizeBytes ?? build.sizeBytes,
+    };
+  });
+  const joinedBuildIds = listedBuilds.map((build) => build.id).sort().join(',');
 
   // Socket.io for build:progress events (global, not per-build)
   useEffect(() => {
@@ -247,13 +281,16 @@ export default function FitsoBuilds() {
       path: '/socket.io/',
       transports: ['websocket', 'polling'],
     });
+    buildSocketRef.current = socket;
 
     socket.on('build:progress', (data: { buildId: string; received: number; total: number }) => {
       setProgressMap((prev) => ({ ...prev, [data.buildId]: { received: data.received, total: data.total } }));
     });
 
-    socket.on('build:status', (data: { buildId: string; status: string }) => {
-      if (data.status === 'downloaded' || data.status === 'finished') {
+    socket.on('build:status', (data: { buildId: string; status: string; sizeBytes?: number }) => {
+      const status = normalizeBuildStatus(data.status);
+      setLiveBuilds((prev) => ({ ...prev, [data.buildId]: { status, sizeBytes: data.sizeBytes } }));
+      if (status === 'downloaded' || status === 'finished' || status === 'errored' || status === 'canceled') {
         setProgressMap((prev) => {
           const next = { ...prev };
           delete next[data.buildId];
@@ -264,9 +301,23 @@ export default function FitsoBuilds() {
     });
 
     return () => {
+      buildSocketRef.current = null;
       socket.disconnect();
     };
   }, [refresh]);
+
+  useEffect(() => {
+    const socket = buildSocketRef.current;
+    if (!socket) return;
+    const joinBuilds = () => {
+      joinedBuildIds.split(',').filter(Boolean).forEach((buildId) => socket.emit('build:join', buildId));
+    };
+    joinBuilds();
+    socket.on('connect', joinBuilds);
+    return () => {
+      socket.off('connect', joinBuilds);
+    };
+  }, [joinedBuildIds]);
 
   const handleTrigger = async (profile: 'preview' | 'development') => {
     setTriggering(profile);
@@ -276,7 +327,32 @@ export default function FitsoBuilds() {
       const result = await triggerBuild(profile);
       setSuccessMsg(`Build started: ${result.id}`);
       setExpandedLogId(result.id);
+      // Optimistic update: add the new build to the list immediately
+      const optimisticBuild: EasBuild = {
+        id: result.id,
+        profile: result.profile,
+        platform: 'ANDROID',
+        status: result.status || 'new',
+        distribution: '',
+        buildType: '',
+        sdkVersion: '',
+        appVersion: '',
+        gitCommitHash: '',
+        gitCommitMessage: '',
+        channel: '',
+        message: result.message || '',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        artifacts: null,
+        submissionStatus: null,
+        localApkAvailable: false,
+        sizeBytes: null,
+        downloadedAt: null,
+      };
+      // Use functional update via a ref-like approach through refresh + manual merge
       refresh();
+      // Also directly inject into the builds data via a custom event
+      window.dispatchEvent(new CustomEvent('build:optimistic', { detail: optimisticBuild }));
     } catch (e) {
       setActionError(e instanceof Error ? e.message : 'Failed to start build');
     } finally {
@@ -330,7 +406,7 @@ export default function FitsoBuilds() {
     setExpandedLogId((prev) => (prev === buildId ? null : buildId));
   }, []);
 
-  const activeBuilds = builds?.filter((b) => isBuildActive(b.status)) ?? [];
+  const activeBuilds = allBuilds.filter((b) => isBuildActive(b.status));
 
   return (
     <div className="space-y-6 p-6 md:p-8">
@@ -506,13 +582,13 @@ export default function FitsoBuilds() {
           <div className="card p-8 text-center text-red-500">Error: {error}</div>
         )}
 
-        {builds && builds.length === 0 && (
+        {allBuilds.length === 0 && !loading && (
           <div className="card p-8 text-center text-muted">
             No builds yet. Trigger a build above to get started.
           </div>
         )}
 
-        {builds && builds.length > 0 && (
+        {allBuilds.length > 0 && (
           <div className="card overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm">
@@ -527,7 +603,7 @@ export default function FitsoBuilds() {
                   </tr>
                 </thead>
                 <tbody>
-                  {builds.map((build: EasBuild) => {
+                  {allBuilds.map((build: EasBuild) => {
                     const artifactUrl = build.artifacts?.artifactUrl;
                     const buildUrl = build.artifacts?.buildUrl;
                     const isFinished = build.status.toLowerCase() === 'finished';

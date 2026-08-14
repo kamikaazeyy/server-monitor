@@ -14,24 +14,18 @@ import FitsoBuilds from './components/FitsoBuilds';
 type Tab = 'overview' | 'containers' | 'projects' | 'services' | 'github' | 'builds' | 'speed' | 'terminal';
 
 function View({ tab, setTab }: { tab: Tab; setTab: (tab: string) => void }): ReactNode {
-  switch (tab) {
-    case 'overview':
-      return <Dashboard setTab={setTab} />;
-    case 'containers':
-      return <Containers />;
-    case 'projects':
-      return <Projects />;
-    case 'services':
-      return <Services />;
-    case 'github':
-      return <GitHubCI />;
-    case 'builds':
-      return <FitsoBuilds />;
-    case 'speed':
-      return <SpeedTest />;
-    case 'terminal':
-      return <TerminalWidget />;
-  }
+  return (
+    <>
+      <div className={tab === 'overview' ? '' : 'hidden'}><Dashboard setTab={setTab} /></div>
+      <div className={tab === 'containers' ? '' : 'hidden'}><Containers /></div>
+      <div className={tab === 'projects' ? '' : 'hidden'}><Projects /></div>
+      <div className={tab === 'services' ? '' : 'hidden'}><Services /></div>
+      <div className={tab === 'github' ? '' : 'hidden'}><GitHubCI /></div>
+      <div className={tab === 'builds' ? '' : 'hidden'}><FitsoBuilds /></div>
+      <div className={tab === 'speed' ? '' : 'hidden'}><SpeedTest /></div>
+      <div className={tab === 'terminal' ? '' : 'hidden'}><TerminalWidget /></div>
+    </>
+  );
 }
 
 function App() {

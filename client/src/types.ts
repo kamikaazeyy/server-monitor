@@ -118,3 +118,36 @@ export interface HistoryPoint {
   networkRx: number;
   networkTx: number;
 }
+
+export interface BuildArtifact {
+  packagerUrl?: string;
+  manifestUrl?: string;
+  artifactUrl?: string;
+  buildUrl?: string;
+}
+
+export interface EasBuild {
+  id: string;
+  profile: string;
+  platform: string;
+  status: string;
+  distribution: string;
+  buildType: string;
+  sdkVersion: string;
+  appVersion: string;
+  gitCommitHash: string;
+  gitCommitMessage: string;
+  channel: string;
+  message: string;
+  createdAt: string;
+  updatedAt: string;
+  artifacts: BuildArtifact | null;
+  submissionStatus: string | null;
+}
+
+export interface TriggerBuildResponse {
+  id: string;
+  profile: string;
+  status: string;
+  message: string;
+}

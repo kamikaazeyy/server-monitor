@@ -9,8 +9,9 @@ import Services from './components/Services';
 import GitHubCI from './components/GitHubCI';
 import SpeedTest from './components/SpeedTest';
 import TerminalWidget from './components/TerminalWidget';
+import FitsoBuilds from './components/FitsoBuilds';
 
-type Tab = 'overview' | 'containers' | 'projects' | 'services' | 'github' | 'speed' | 'terminal';
+type Tab = 'overview' | 'containers' | 'projects' | 'services' | 'github' | 'builds' | 'speed' | 'terminal';
 
 function View({ tab, setTab }: { tab: Tab; setTab: (tab: string) => void }): ReactNode {
   switch (tab) {
@@ -24,6 +25,8 @@ function View({ tab, setTab }: { tab: Tab; setTab: (tab: string) => void }): Rea
       return <Services />;
     case 'github':
       return <GitHubCI />;
+    case 'builds':
+      return <FitsoBuilds />;
     case 'speed':
       return <SpeedTest />;
     case 'terminal':

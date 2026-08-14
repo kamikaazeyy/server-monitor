@@ -8,6 +8,8 @@ import type {
   GitHubData,
   SpeedTestResult,
   HistoryPoint,
+  EasBuild,
+  TriggerBuildResponse,
 } from '../types';
 
 function useFetch<T>(url: string, interval = 5000) {
@@ -73,6 +75,34 @@ export async function containerAction(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name, action }),
   });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || `${res.status} ${res.statusText}`);
+  }
+  return res.json();
+}
+
+export const useBuilds = (interval = 10000) =>
+  useFetch<EasBuild[]>('/api/builds', interval);
+
+export async function triggerBuild(
+  profile: 'preview' | 'development',
+  message?: string
+): Promise<TriggerBuildResponse> {
+  const res = await fetch('/api/builds', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ profile, message }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || `${res.status} ${res.statusText}`);
+  }
+  return res.json();
+}
+
+export async function cancelBuild(buildId: string): Promise<{ ok: boolean; id: string }> {
+  const res = await fetch(`/api/builds/${buildId}/cancel`, { method: 'POST' });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err.error || `${res.status} ${res.statusText}`);

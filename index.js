@@ -5,6 +5,7 @@ const path = require('path');
 const pty = require('node-pty');
 const cors = require('cors');
 const monitorRouter = require('./monitor');
+const buildsRouter = require('./builds');
 
 const app = express();
 app.use(cors({
@@ -14,6 +15,7 @@ app.use(cors({
 app.use(express.json());
 
 app.use(monitorRouter);
+app.use(buildsRouter);
 
 const httpServer = createServer(app);
 const io = new Server(httpServer, {

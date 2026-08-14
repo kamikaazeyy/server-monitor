@@ -4,13 +4,14 @@ import {
   FolderKanban,
   List,
   GitBranch,
+  Smartphone,
   Zap,
   Terminal,
   type LucideIcon,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 
-type Tab = 'overview' | 'containers' | 'projects' | 'services' | 'github' | 'speed' | 'terminal';
+type Tab = 'overview' | 'containers' | 'projects' | 'services' | 'github' | 'builds' | 'speed' | 'terminal';
 
 interface SidebarProps {
   active: Tab;
@@ -23,6 +24,7 @@ const items: { id: Tab; icon: LucideIcon; label: string }[] = [
   { id: 'projects', icon: FolderKanban, label: 'Projects' },
   { id: 'services', icon: List, label: 'Services' },
   { id: 'github', icon: GitBranch, label: 'GitHub / CI' },
+  { id: 'builds', icon: Smartphone, label: 'Fitso Builds' },
   { id: 'speed', icon: Zap, label: 'Speed Test' },
   { id: 'terminal', icon: Terminal, label: 'Terminal' },
 ];

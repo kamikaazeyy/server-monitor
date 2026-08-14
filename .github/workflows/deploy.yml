@@ -9,8 +9,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  deploy:
-    runs-on: self-hosted
+  build:
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -30,18 +30,91 @@ jobs:
           npm ci
           npm run build
 
-      - name: Deploy to /opt/monitoring-dashboard
+      - name: Prepare deploy bundle
         run: |
-          mkdir -p /opt/monitoring-dashboard
-          rsync -av --delete \
+          mkdir -p bundle
+          rsync -av \
             --exclude='.git' \
             --exclude='.github' \
             --exclude='node_modules' \
             --exclude='client/node_modules' \
             --exclude='client/src' \
-            ./ /opt/monitoring-dashboard/
-          cd /opt/monitoring-dashboard
+            ./ bundle/
+          cd bundle
           npm ci --production
+          tar czf ../deploy-bundle.tar.gz .
+          ls -lh ../deploy-bundle.tar.gz
 
-      - name: Restart service
-        run: sudo systemctl restart monitoring-dashboard
+      - name: Upload bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: deploy-bundle
+          path: deploy-bundle.tar.gz
+          retention-days: 1
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: deploy-bundle
+          path: ./artifacts
+
+      - name: Install Tailscale
+        uses: tailscale/github-action@v2
+        with:
+          oauth-client-id: ${{ secrets.TAILSCALE_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TAILSCALE_CLIENT_SECRET }}
+          tags: tag:ci
+
+      - name: Wait for Tailscale connection
+        run: |
+          sleep 5
+          tailscale status | head -5
+
+      - name: Prepare remote directory
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          port: ${{ secrets.SERVER_SSH_PORT || '22' }}
+          script: mkdir -p /tmp/monitor-deploy
+
+      - name: Copy bundle to server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          port: ${{ secrets.SERVER_SSH_PORT || '22' }}
+          source: "./artifacts/deploy-bundle.tar.gz"
+          target: "/tmp/monitor-deploy/"
+
+      - name: Deploy on server
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          port: ${{ secrets.SERVER_SSH_PORT || '22' }}
+          script: |
+            set -e
+            cd /tmp/monitor-deploy
+            tar xzf deploy-bundle.tar.gz -C /opt/monitoring-dashboard
+            sudo systemctl restart monitoring-dashboard
+            sleep 2
+            systemctl is-active monitoring-dashboard
+            echo "Deploy complete"
+
+      - name: Cleanup
+        if: always()
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          port: ${{ secrets.SERVER_SSH_PORT || '22' }}
+          script: rm -rf /tmp/monitor-deploy

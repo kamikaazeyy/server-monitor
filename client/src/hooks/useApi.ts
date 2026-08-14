@@ -109,3 +109,27 @@ export async function cancelBuild(buildId: string): Promise<{ ok: boolean; id: s
   }
   return res.json();
 }
+
+export async function mirrorBuild(buildId: string): Promise<{ ok: boolean; id: string; message: string }> {
+  const res = await fetch(`/api/builds/${buildId}/mirror`, { method: 'POST' });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || `${res.status} ${res.statusText}`);
+  }
+  return res.json();
+}
+
+export async function deleteBuild(buildId: string): Promise<{ ok: boolean; id: string }> {
+  const res = await fetch(`/api/builds/${buildId}`, { method: 'DELETE' });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || `${res.status} ${res.statusText}`);
+  }
+  return res.json();
+}
+
+export async function fetchBuildLog(buildId: string): Promise<string> {
+  const res = await fetch(`/api/builds/${buildId}/log`);
+  if (!res.ok) return '';
+  return res.text();
+}

@@ -143,6 +143,9 @@ export interface EasBuild {
   updatedAt: string;
   artifacts: BuildArtifact | null;
   submissionStatus: string | null;
+  localApkAvailable: boolean;
+  sizeBytes: number | null;
+  downloadedAt: string | null;
 }
 
 export interface TriggerBuildResponse {

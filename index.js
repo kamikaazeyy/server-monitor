@@ -5,7 +5,7 @@ const path = require('path');
 const pty = require('node-pty');
 const cors = require('cors');
 const monitorRouter = require('./monitor');
-const buildsRouter = require('./builds');
+const createBuildsRouter = require('./builds');
 
 const app = express();
 app.use(cors({
@@ -14,9 +14,6 @@ app.use(cors({
 }));
 app.use(express.json());
 
-app.use(monitorRouter);
-app.use(buildsRouter);
-
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
   cors: {
@@ -24,6 +21,9 @@ const io = new Server(httpServer, {
     credentials: true,
   },
 });
+
+app.use(monitorRouter);
+app.use(createBuildsRouter(io));
 
 // ---------------------------------------------------------------------------
 // SECURITY NOTICE: Terminal access is powerful. Authentication middleware

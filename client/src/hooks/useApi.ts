@@ -63,3 +63,19 @@ export async function runSpeedTest(): Promise<SpeedTestResult> {
   const res = await fetch('/api/monitor/speedtest', { method: 'POST' });
   return res.json();
 }
+
+export async function containerAction(
+  name: string,
+  action: 'start' | 'stop' | 'restart'
+): Promise<{ ok: boolean; name: string; action: string }> {
+  const res = await fetch('/api/monitor/containers/action', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, action }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || `${res.status} ${res.statusText}`);
+  }
+  return res.json();
+}

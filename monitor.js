@@ -169,8 +169,8 @@ function parsePercent(str) {
 async function getContainers() {
   try {
     const [psOut, statsOut] = await Promise.all([
-      runCommand('docker', ['ps', '--format', '{{json .}}']).catch(() => ''),
-      runCommand('docker', ['stats', '--no-stream', '--format', 'json']).catch(() => '')
+      runCommand('docker', ['ps', '-a', '--format', '{{json .}}']).catch(() => ''),
+      runCommand('docker', ['stats', '-a', '--no-stream', '--format', 'json']).catch(() => '')
     ]);
 
     const psList = psOut
@@ -432,6 +432,21 @@ router.get('/api/monitor/github', async (req, res) => {
 router.post('/api/monitor/speedtest', async (req, res) => {
   try {
     res.json(await runSpeedTest());
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// SECURITY: container lifecycle endpoints must be protected by authentication
+// middleware before deployment. Do not expose these without authorization.
+router.post('/api/monitor/containers/action', async (req, res) => {
+  const { name, action } = req.body || {};
+  if (!name || !['start', 'stop', 'restart'].includes(action)) {
+    return res.status(400).json({ error: 'Invalid container name or action' });
+  }
+  try {
+    await runCommand('docker', [action, name]);
+    res.json({ ok: true, name, action });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

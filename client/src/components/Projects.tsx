@@ -1,8 +1,67 @@
-import { useProjects } from '../hooks/useApi';
+import { useState } from 'react';
+import { useProjects, containerAction } from '../hooks/useApi';
 import StatusBadge from './StatusBadge';
+import { cn } from '../lib/utils';
+import type { ContainerData } from '../types';
+
+function ContainerActions({ c, onRefresh }: { c: ContainerData; onRefresh: () => Promise<void> }) {
+  const [working, setWorking] = useState(false);
+  const isRunning = c.state?.toLowerCase() === 'running';
+
+  const handleAction = async (action: 'start' | 'stop' | 'restart') => {
+    setWorking(true);
+    try {
+      await containerAction(c.name, action);
+      await onRefresh();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Action failed');
+    } finally {
+      setWorking(false);
+    }
+  };
+
+  return (
+    <div className="flex items-center gap-2">
+      {!isRunning && (
+        <button
+          onClick={() => handleAction('start')}
+          disabled={working}
+          className={cn(
+            'rounded-full px-2 py-0.5 text-xs font-medium transition-opacity',
+            'bg-emerald-100 text-emerald-700 hover:bg-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400'
+          )}
+        >
+          {working ? '…' : 'Start'}
+        </button>
+      )}
+      {isRunning && (
+        <button
+          onClick={() => handleAction('stop')}
+          disabled={working}
+          className={cn(
+            'rounded-full px-2 py-0.5 text-xs font-medium transition-opacity',
+            'bg-red-100 text-red-700 hover:bg-red-200 dark:bg-red-900/30 dark:text-red-400'
+          )}
+        >
+          {working ? '…' : 'Stop'}
+        </button>
+      )}
+      <button
+        onClick={() => handleAction('restart')}
+        disabled={working}
+        className={cn(
+          'rounded-full px-2 py-0.5 text-xs font-medium transition-opacity',
+          'bg-amber-100 text-amber-700 hover:bg-amber-200 dark:bg-amber-900/30 dark:text-amber-400'
+        )}
+      >
+        {working ? '…' : 'Restart'}
+      </button>
+    </div>
+  );
+}
 
 export default function Projects() {
-  const { data, loading } = useProjects(5000);
+  const { data, loading, refresh } = useProjects(5000);
 
   if (loading && !data) {
     return <div className="p-8 text-muted">Loading projects…</div>;
@@ -25,7 +84,10 @@ export default function Projects() {
                     <p className="text-sm font-medium">{c.name}</p>
                     <p className="text-xs text-muted">{c.service}</p>
                   </div>
-                  <StatusBadge state={c.state} />
+                  <div className="flex flex-col items-end gap-2">
+                    <StatusBadge state={c.state} />
+                    <ContainerActions c={c} onRefresh={refresh} />
+                  </div>
                 </div>
               ))}
             </div>

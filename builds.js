@@ -229,7 +229,7 @@ function pollBuildStatus(io, buildId) {
     attempts++;
 
     try {
-      const raw = await runEas(['build:view', buildId, '--json', '--non-interactive']);
+      const raw = await runEas(['build:view', buildId, '--json']);
       const b = parseEasBuild(raw);
       const status = normalizeBuildStatus(b.status);
 
@@ -435,7 +435,7 @@ module.exports = function createBuildsRouter(io) {
       return res.status(400).json({ error: 'Invalid build ID' });
     }
     try {
-      const raw = await runEas(['build:view', id, '--json', '--non-interactive']);
+      const raw = await runEas(['build:view', id, '--json']);
       const b = parseEasBuild(raw);
       const localEntry = readIndex().find(e => e.easBuildId === id);
       res.json(mapEasBuild(b, localEntry));
@@ -492,7 +492,7 @@ module.exports = function createBuildsRouter(io) {
       return res.status(400).json({ error: 'Invalid build ID' });
     }
     try {
-      const raw = await runEas(['build:view', id, '--json', '--non-interactive']);
+      const raw = await runEas(['build:view', id, '--json']);
       const b = parseEasBuild(raw);
       if (normalizeBuildStatus(b.status) !== 'finished') {
         return res.status(400).json({ error: `Build status is ${b.status}, must be finished to mirror` });

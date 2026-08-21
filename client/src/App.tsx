@@ -10,8 +10,9 @@ import GitHubCI from './components/GitHubCI';
 import SpeedTest from './components/SpeedTest';
 import TerminalWidget from './components/TerminalWidget';
 import FitsoBuilds from './components/FitsoBuilds';
+import Database from './components/Database';
 
-type Tab = 'overview' | 'containers' | 'projects' | 'services' | 'github' | 'builds' | 'speed' | 'terminal';
+type Tab = 'overview' | 'containers' | 'projects' | 'services' | 'github' | 'builds' | 'speed' | 'terminal' | 'database';
 
 function View({ tab, setTab }: { tab: Tab; setTab: (tab: string) => void }): ReactNode {
   return (
@@ -24,6 +25,7 @@ function View({ tab, setTab }: { tab: Tab; setTab: (tab: string) => void }): Rea
       <div className={tab === 'builds' ? '' : 'hidden'}><FitsoBuilds /></div>
       <div className={tab === 'speed' ? '' : 'hidden'}><SpeedTest /></div>
       <div className={tab === 'terminal' ? '' : 'hidden'}><TerminalWidget /></div>
+      <div className={tab === 'database' ? '' : 'hidden'}><Database /></div>
     </>
   );
 }

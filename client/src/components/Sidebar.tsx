@@ -7,11 +7,12 @@ import {
   Smartphone,
   Zap,
   Terminal,
+  Database,
   type LucideIcon,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 
-type Tab = 'overview' | 'containers' | 'projects' | 'services' | 'github' | 'builds' | 'speed' | 'terminal';
+type Tab = 'overview' | 'containers' | 'projects' | 'services' | 'github' | 'builds' | 'speed' | 'terminal' | 'database';
 
 interface SidebarProps {
   active: Tab;
@@ -27,6 +28,7 @@ const items: { id: Tab; icon: LucideIcon; label: string }[] = [
   { id: 'builds', icon: Smartphone, label: 'Fitso Builds' },
   { id: 'speed', icon: Zap, label: 'Speed Test' },
   { id: 'terminal', icon: Terminal, label: 'Terminal' },
+  { id: 'database', icon: Database, label: 'Database' },
 ];
 
 export default function Sidebar({ active, onChange }: SidebarProps) {

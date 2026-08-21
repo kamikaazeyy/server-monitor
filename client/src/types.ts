@@ -154,3 +154,43 @@ export interface TriggerBuildResponse {
   status: string;
   message: string;
 }
+
+// --- Database browser types ---
+
+export type DbType = 'postgres' | 'mysql' | 'mongo' | 'redis';
+
+export interface DbContainer {
+  containerId: string;
+  containerName: string;
+  type: DbType;
+  project: string | null;
+  host: string;
+  port: number;
+  user: string;
+  database: string;
+  status: 'connected' | 'disconnected' | 'error';
+  error?: string;
+}
+
+export interface TableInfo {
+  name: string;
+  type: 'table' | 'view';
+  rowEstimate: number;
+  sizeBytes: number;
+}
+
+export interface ColumnInfo {
+  name: string;
+  dataType: string;
+  nullable: boolean;
+  defaultValue: string | null;
+  isPrimaryKey: boolean;
+}
+
+export interface TableDataResponse {
+  rows: Record<string, unknown>[];
+  columns: ColumnInfo[];
+  totalRows: number;
+  page: number;
+  limit: number;
+}

@@ -10,6 +10,10 @@ import type {
   HistoryPoint,
   EasBuild,
   TriggerBuildResponse,
+  DbContainer,
+  TableInfo,
+  ColumnInfo,
+  TableDataResponse,
 } from '../types';
 
 function useFetch<T>(url: string, interval = 5000) {
@@ -132,4 +136,141 @@ export async function fetchBuildLog(buildId: string): Promise<string> {
   const res = await fetch(`/api/builds/${buildId}/log`);
   if (!res.ok) return '';
   return res.text();
+}
+
+// --- Database browser hooks ---
+
+export const useDbContainers = (interval = 15000) =>
+  useFetch<DbContainer[]>('/api/db', interval);
+
+export function useDatabases(containerId: string | null) {
+  const [data, setData] = useState<string[] | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchDatabases = useCallback(async () => {
+    if (!containerId) { setData(null); return; }
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/db/${containerId}/databases`);
+      if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+      const json = await res.json();
+      setData(json);
+      setError(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Error');
+    } finally {
+      setLoading(false);
+    }
+  }, [containerId]);
+
+  useEffect(() => {
+    fetchDatabases();
+  }, [fetchDatabases]);
+
+  return { data, loading, error, refresh: fetchDatabases };
+}
+
+export function useTables(containerId: string | null, dbName: string | null) {
+  const [data, setData] = useState<TableInfo[] | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchTables = useCallback(async () => {
+    if (!containerId || !dbName) { setData(null); return; }
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/db/${containerId}/${dbName}/tables`);
+      if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+      const json = await res.json();
+      setData(json);
+      setError(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Error');
+    } finally {
+      setLoading(false);
+    }
+  }, [containerId, dbName]);
+
+  useEffect(() => {
+    fetchTables();
+  }, [fetchTables]);
+
+  return { data, loading, error, refresh: fetchTables };
+}
+
+export function useTableData(
+  containerId: string | null,
+  dbName: string | null,
+  table: string | null,
+  page: number,
+  limit: number,
+  sortCol: string | null,
+  sortDir: 'asc' | 'desc'
+) {
+  const [data, setData] = useState<TableDataResponse | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchData = useCallback(async () => {
+    if (!containerId || !dbName || !table) { setData(null); return; }
+    setLoading(true);
+    try {
+      const params = new URLSearchParams({
+        page: String(page),
+        limit: String(limit),
+      });
+      if (sortCol) {
+        params.set('sort', sortCol);
+        params.set('dir', sortDir);
+      }
+      const res = await fetch(`/api/db/${containerId}/${dbName}/${table}/data?${params}`);
+      if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+      const json = await res.json();
+      setData(json);
+      setError(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Error');
+    } finally {
+      setLoading(false);
+    }
+  }, [containerId, dbName, table, page, limit, sortCol, sortDir]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  return { data, loading, error, refresh: fetchData };
+}
+
+export function useTableSchema(
+  containerId: string | null,
+  dbName: string | null,
+  table: string | null
+) {
+  const [data, setData] = useState<ColumnInfo[] | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchSchema = useCallback(async () => {
+    if (!containerId || !dbName || !table) { setData(null); return; }
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/db/${containerId}/${dbName}/${table}/schema`);
+      if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+      const json = await res.json();
+      setData(json);
+      setError(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Error');
+    } finally {
+      setLoading(false);
+    }
+  }, [containerId, dbName, table]);
+
+  useEffect(() => {
+    fetchSchema();
+  }, [fetchSchema]);
+
+  return { data, loading, error, refresh: fetchSchema };
 }

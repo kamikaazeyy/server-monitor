@@ -5,3 +5,4 @@ client/dist
 client/node_modules
 dist
 builds/
+IMPLEMENTATION_CONTEXT.md

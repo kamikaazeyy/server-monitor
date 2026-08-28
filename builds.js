@@ -240,33 +240,33 @@ function pollBuildStatus(io, buildId) {
       }
 
       if (status === 'finished') {
-        const artifactUrl = b.artifacts?.artifactUrl;
+        const artifactUrl = b.artifacts?.applicationArchiveUrl || b.artifacts?.artifactUrl;
         if (!artifactUrl) {
-          emitLog(io, buildId, 'Build finished but no artifact URL found', 'stderr');
+          emitLog(io, buildId, 'Build finished, artifact URL not yet available — polling again', 'stderr');
+        } else {
+          // Persist metadata before download
+          upsertIndexEntry({
+            id: buildId,
+            easBuildId: buildId,
+            gitCommitHash: b.gitCommitHash || '',
+            branch: b.gitBranch || b.channel || '',
+            profile: b.buildProfile || '',
+            appVersion: b.appVersion || '',
+            sizeBytes: 0,
+            createdAt: b.createdAt || new Date().toISOString(),
+            downloadedAt: null,
+            status: 'finished',
+          });
+          emitStatus(io, buildId, 'downloading');
+          emitLog(io, buildId, `Downloading artifact from ${artifactUrl}`, 'stdout');
+          try {
+            const size = await downloadArtifact(io, buildId, artifactUrl);
+            emitLog(io, buildId, `Artifact downloaded successfully (${size} bytes)`, 'stdout');
+          } catch (err) {
+            emitLog(io, buildId, `Download failed: ${err.message}`, 'stderr');
+          }
           return;
         }
-        // Persist metadata before download
-        upsertIndexEntry({
-          id: buildId,
-          easBuildId: buildId,
-          gitCommitHash: b.gitCommitHash || '',
-          branch: b.gitBranch || b.channel || '',
-          profile: b.buildProfile || '',
-          appVersion: b.appVersion || '',
-          sizeBytes: 0,
-          createdAt: b.createdAt || new Date().toISOString(),
-          downloadedAt: null,
-          status: 'finished',
-        });
-        emitStatus(io, buildId, 'downloading');
-        emitLog(io, buildId, `Downloading artifact from ${artifactUrl}`, 'stdout');
-        try {
-          const size = await downloadArtifact(io, buildId, artifactUrl);
-          emitLog(io, buildId, `Artifact downloaded successfully (${size} bytes)`, 'stdout');
-        } catch (err) {
-          emitLog(io, buildId, `Download failed: ${err.message}`, 'stderr');
-        }
-        return;
       }
 
       if (status === 'errored' || status === 'canceled' || status === 'cancelled') {
@@ -497,7 +497,7 @@ module.exports = function createBuildsRouter(io) {
       if (normalizeBuildStatus(b.status) !== 'finished') {
         return res.status(400).json({ error: `Build status is ${b.status}, must be finished to mirror` });
       }
-      const artifactUrl = b.artifacts?.artifactUrl;
+      const artifactUrl = b.artifacts?.applicationArchiveUrl || b.artifacts?.artifactUrl;
       if (!artifactUrl) {
         return res.status(400).json({ error: 'No artifact URL available for this build' });
       }

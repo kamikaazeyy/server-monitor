@@ -151,67 +151,86 @@ function emitProgress(io, buildId, received, total) {
 
 // --- Artifact download -------------------------------------------------------
 
-function downloadArtifact(io, buildId, artifactUrl) {
+function downloadArtifact(io, buildId, artifactUrl, redirectLimit = 10) {
   return new Promise((resolve, reject) => {
     const apkPath = getApkPath(buildId);
     const partPath = apkPath + '.part';
-    const file = fs.createWriteStream(partPath);
-    const protocol = artifactUrl.startsWith('https') ? https : http;
 
-    const req = protocol.get(artifactUrl, (response) => {
-      if (response.statusCode !== 200) {
-        file.close();
-        try { fs.unlinkSync(partPath); } catch {}
-        reject(new Error(`Download failed: HTTP ${response.statusCode}`));
-        return;
-      }
-      const total = parseInt(response.headers['content-length'] || '0', 10);
-      let received = 0;
+    function start(url, redirects) {
+      let file = null;
+      const proto = url.startsWith('https') ? https : http;
 
-      response.on('data', (chunk) => {
-        received += chunk.length;
-        emitProgress(io, buildId, received, total);
-      });
-
-      response.pipe(file);
-
-      file.on('finish', () => {
-        file.close(() => {
-          try {
-            fs.renameSync(partPath, apkPath);
-          } catch (err) {
-            reject(new Error(`Failed to finalize download: ${err.message}`));
+      const req = proto.get(url, (response) => {
+        if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
+          if (redirects <= 0) {
+            reject(new Error('Download failed: too many redirects'));
             return;
           }
-          let sizeBytes = 0;
-          try {
-            sizeBytes = fs.statSync(apkPath).size;
-          } catch {}
-          upsertIndexEntry({
-            id: buildId,
-            easBuildId: buildId,
-            sizeBytes,
-            downloadedAt: new Date().toISOString(),
-            status: 'downloaded',
+          const rawLocation = Array.isArray(response.headers.location)
+            ? response.headers.location[0]
+            : response.headers.location;
+          const location = new URL(rawLocation, url).toString();
+          start(location, redirects - 1);
+          return;
+        }
+
+        if (response.statusCode !== 200) {
+          reject(new Error(`Download failed: HTTP ${response.statusCode}`));
+          return;
+        }
+
+        file = fs.createWriteStream(partPath);
+        const total = parseInt(response.headers['content-length'] || '0', 10);
+        let received = 0;
+
+        response.on('data', (chunk) => {
+          received += chunk.length;
+          emitProgress(io, buildId, received, total);
+        });
+
+        response.pipe(file);
+
+        file.on('finish', () => {
+          file.close(() => {
+            try {
+              fs.renameSync(partPath, apkPath);
+            } catch (err) {
+              reject(new Error(`Failed to finalize download: ${err.message}`));
+              return;
+            }
+            let sizeBytes = 0;
+            try {
+              sizeBytes = fs.statSync(apkPath).size;
+            } catch {}
+            upsertIndexEntry({
+              id: buildId,
+              easBuildId: buildId,
+              sizeBytes,
+              downloadedAt: new Date().toISOString(),
+              status: 'downloaded',
+            });
+            emitStatus(io, buildId, 'downloaded', { sizeBytes });
+            pruneBuilds();
+            resolve(sizeBytes);
           });
-          emitStatus(io, buildId, 'downloaded', { sizeBytes });
-          pruneBuilds();
-          resolve(sizeBytes);
+        });
+
+        file.on('error', (err) => {
+          file.close();
+          try { fs.unlinkSync(partPath); } catch {}
+          reject(err);
         });
       });
 
-      file.on('error', (err) => {
-        file.close();
+      req.on('error', (err) => {
+        if (file) file.close();
         try { fs.unlinkSync(partPath); } catch {}
         reject(err);
       });
-    });
+    }
 
-    req.on('error', (err) => {
-      file.close();
-      try { fs.unlinkSync(partPath); } catch {}
-      reject(err);
-    });
+    try { fs.unlinkSync(partPath); } catch {}
+    start(artifactUrl, redirectLimit);
   });
 }
 

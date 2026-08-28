@@ -407,6 +407,7 @@ export default function FitsoBuilds() {
   }, []);
 
   const activeBuilds = allBuilds.filter((b) => isBuildActive(b.status));
+  const historyBuilds = allBuilds.filter((b) => !isBuildActive(b.status));
 
   return (
     <div className="space-y-6 p-6 md:p-8">
@@ -588,7 +589,7 @@ export default function FitsoBuilds() {
           </div>
         )}
 
-        {allBuilds.length > 0 && (
+        {historyBuilds.length > 0 && (
           <div className="card overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm">
@@ -603,7 +604,7 @@ export default function FitsoBuilds() {
                   </tr>
                 </thead>
                 <tbody>
-                  {allBuilds.map((build: EasBuild) => {
+                  {historyBuilds.map((build: EasBuild) => {
                     const artifactUrl = build.artifacts?.artifactUrl;
                     const buildUrl = build.artifacts?.buildUrl;
                     const isFinished = build.status.toLowerCase() === 'finished';

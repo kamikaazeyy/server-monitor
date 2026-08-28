@@ -85,12 +85,21 @@ export default function TerminalWidget() {
 
   return (
     <div className="mx-auto h-[calc(100vh-8rem)] max-w-screen-2xl p-4 md:h-[calc(100vh-6rem)]">
-      <div className="flex h-full flex-col overflow-hidden rounded-3xl border border-black/5 bg-surface p-4 shadow-sm dark:border-white/10 dark:bg-surface-dark dark:shadow-none">
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-ink dark:text-white">Terminal</h2>
+      <div className="z-0 flex h-full w-full flex-col rounded-xl border border-black/5 bg-surface shadow-sm dark:border-white/10 dark:bg-surface-dark dark:shadow-none">
+        <div className="flex flex-col gap-y-2 border-b border-black/5 p-4 dark:border-white/10">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-ink dark:text-white">Terminal</h2>
+            <div className="flex flex-row gap-x-2">
+              <div className="h-2 w-2 rounded-full bg-red-500" />
+              <div className="h-2 w-2 rounded-full bg-yellow-500" />
+              <div className="h-2 w-2 rounded-full bg-green-500" />
+            </div>
+          </div>
           <span className="text-xs text-muted dark:text-gray-400">xterm.js / node-pty</span>
         </div>
-        <div ref={terminalRef} className="min-h-0 flex-1 overflow-hidden rounded-2xl" />
+        <div className="min-h-0 flex-1 p-4">
+          <div ref={terminalRef} className="h-full w-full overflow-hidden rounded-2xl" />
+        </div>
       </div>
     </div>
   );

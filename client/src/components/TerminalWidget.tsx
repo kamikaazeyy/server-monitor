@@ -4,6 +4,11 @@ import { FitAddon } from '@xterm/addon-fit';
 import { io } from 'socket.io-client';
 import '@xterm/xterm/css/xterm.css';
 
+function getTerminalFontSize(width: number): number {
+  if (width < 480) return 13;
+  return 14;
+}
+
 export default function TerminalWidget() {
   const terminalRef = useRef<HTMLDivElement>(null);
 
@@ -34,7 +39,7 @@ export default function TerminalWidget() {
         brightWhite: '#ffffff',
       },
       fontFamily: 'Menlo, Monaco, "Courier New", monospace',
-      fontSize: 14,
+      fontSize: getTerminalFontSize(terminalRef.current.clientWidth),
       cursorBlink: true,
       scrollback: 5000,
       allowProposedApi: true,
@@ -67,28 +72,44 @@ export default function TerminalWidget() {
       term.write(data);
     });
 
+    let resizeRaf: number;
     const handleResize = () => {
-      fitAddon.fit();
-      const dims = fitAddon.proposeDimensions();
-      if (dims) {
-        socket.emit('terminal:resize', { cols: dims.cols, rows: dims.rows });
-      }
+      cancelAnimationFrame(resizeRaf);
+      resizeRaf = requestAnimationFrame(() => {
+        if (!terminalRef.current) return;
+        const width = terminalRef.current.clientWidth;
+        const nextFontSize = getTerminalFontSize(width);
+        if (term.options.fontSize !== nextFontSize) {
+          term.options.fontSize = nextFontSize;
+        }
+        fitAddon.fit();
+        const dims = fitAddon.proposeDimensions();
+        if (dims) {
+          socket.emit('terminal:resize', { cols: dims.cols, rows: dims.rows });
+        }
+      });
     };
+
     window.addEventListener('resize', handleResize);
 
+    const resizeObserver = new ResizeObserver(handleResize);
+    resizeObserver.observe(terminalRef.current);
+
     return () => {
+      cancelAnimationFrame(resizeRaf);
       window.removeEventListener('resize', handleResize);
+      resizeObserver.disconnect();
       socket.disconnect();
       term.dispose();
     };
   }, []);
 
   return (
-    <div className="mx-auto h-[calc(100vh-8rem)] max-w-screen-2xl p-4 md:h-[calc(100vh-6rem)]">
+    <div className="mx-auto h-[calc(100dvh-8rem)] max-w-screen-2xl p-3 sm:h-[calc(100dvh-7.5rem)] sm:p-4 md:h-[calc(100dvh-6rem)]">
       <div className="z-0 flex h-full w-full flex-col rounded-xl border border-black/5 bg-surface shadow-sm dark:border-white/10 dark:bg-surface-dark dark:shadow-none">
-        <div className="flex flex-col gap-y-2 border-b border-black/5 p-4 dark:border-white/10">
+        <div className="flex flex-col gap-y-2 border-b border-black/5 p-3 dark:border-white/10 sm:p-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-ink dark:text-white">Terminal</h2>
+            <h2 className="text-base font-semibold text-ink dark:text-white sm:text-lg">Terminal</h2>
             <div className="flex flex-row gap-x-2">
               <div className="h-2 w-2 rounded-full bg-red-500" />
               <div className="h-2 w-2 rounded-full bg-yellow-500" />
@@ -97,7 +118,7 @@ export default function TerminalWidget() {
           </div>
           <span className="text-xs text-muted dark:text-gray-400">xterm.js / node-pty</span>
         </div>
-        <div className="min-h-0 flex-1 p-4">
+        <div className="min-h-0 flex-1 p-3 sm:p-4">
           <div ref={terminalRef} className="h-full w-full overflow-hidden rounded-2xl" />
         </div>
       </div>

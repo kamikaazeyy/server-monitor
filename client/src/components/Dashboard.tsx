@@ -12,6 +12,7 @@ import {
   Settings,
   Download,
 } from 'lucide-react';
+import { useEffect, useRef } from 'react';
 import {
   useOverview,
   useNetwork,
@@ -19,6 +20,7 @@ import {
   useServices,
   useHistory,
 } from '../hooks/useApi';
+import { useNotifications } from '../context/NotificationContext';
 import KpiCard from './KpiCard';
 import StatusBadge from './StatusBadge';
 import Sparkline from './Sparkline';
@@ -82,6 +84,54 @@ export default function Dashboard({ setTab }: { setTab?: (tab: string) => void }
   const { data: containers } = useContainers(5000);
   const { data: services } = useServices(30000);
   const { data: history } = useHistory(1000);
+  const { pushNotification } = useNotifications();
+
+  // --- Detect new / removed / state-changed containers ---
+  const prevContainersRef = useRef<Map<string, { name: string; state: string }> | null>(null);
+  useEffect(() => {
+    if (!containers) return;
+    const currentMap = new Map(containers.map((c) => [c.id, { name: c.name, state: c.state }]));
+    const prev = prevContainersRef.current;
+    if (prev) {
+      // New containers
+      for (const [id, info] of currentMap) {
+        if (!prev.has(id)) {
+          pushNotification('container', 'New Container Detected', `Container "${info.name}" appeared (${info.state}).`);
+        }
+      }
+      // Removed containers
+      for (const [id, info] of prev) {
+        if (!currentMap.has(id)) {
+          pushNotification('container', 'Container Removed', `Container "${info.name}" is no longer present.`);
+        }
+      }
+      // State changes (running -> stopped, etc.)
+      for (const [id, info] of currentMap) {
+        const old = prev.get(id);
+        if (old && old.state !== info.state) {
+          pushNotification('container', 'Container State Changed', `"${info.name}" changed from ${old.state} to ${info.state}.`);
+        }
+      }
+    }
+    prevContainersRef.current = currentMap;
+  }, [containers, pushNotification]);
+
+  // --- Detect service failures ---
+  const prevServicesRef = useRef<Map<string, { unit: string; state: string; sub: string }> | null>(null);
+  useEffect(() => {
+    if (!services) return;
+    const currentMap = new Map(services.map((s) => [s.unit, { unit: s.unit, state: s.state, sub: s.sub }]));
+    const prev = prevServicesRef.current;
+    if (prev) {
+      for (const [unit, info] of currentMap) {
+        const old = prev.get(unit);
+        if (old && old.state !== 'failed' && info.state === 'failed') {
+          pushNotification('system', 'Service Failed', `System service "${unit}" entered failed state.`);
+        }
+      }
+    }
+    prevServicesRef.current = currentMap;
+  }, [services, pushNotification]);
 
   const csum = containerSummary(containers);
   const ssum = serviceSummary(services);

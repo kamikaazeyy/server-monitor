@@ -1,8 +1,13 @@
+import { useState } from 'react';
 import { Search, Bell, Sun, Moon } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
+import { useNotifications } from '../context/NotificationContext';
+import NotificationPanel from './NotificationPanel';
 
 export default function Header() {
   const { dark, toggle } = useTheme();
+  const { unreadCount } = useNotifications();
+  const [notifOpen, setNotifOpen] = useState(false);
 
   return (
     <header className="flex items-center justify-between px-6 py-5 md:px-8">
@@ -17,14 +22,23 @@ export default function Header() {
           Real-time visibility into servers, containers and projects.
         </p>
       </div>
-      <div className="flex items-center gap-3">
+      <div className="relative flex items-center gap-3">
         <button className="hidden h-10 w-10 items-center justify-center rounded-full bg-white shadow-sm dark:bg-surface-dark md:flex">
           <Search size={18} className="text-muted" />
         </button>
-        <button className="relative hidden h-10 w-10 items-center justify-center rounded-full bg-white shadow-sm dark:bg-surface-dark md:flex">
+        <button
+          onClick={() => setNotifOpen((v) => !v)}
+          className="relative flex h-10 w-10 items-center justify-center rounded-full bg-white shadow-sm transition-colors dark:bg-surface-dark"
+          aria-label="Notifications"
+        >
           <Bell size={18} className="text-muted" />
-          <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-red-500" />
+          {unreadCount > 0 && (
+            <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
+              {unreadCount > 99 ? '99+' : unreadCount}
+            </span>
+          )}
         </button>
+        <NotificationPanel open={notifOpen} onClose={() => setNotifOpen(false)} />
         <button
           onClick={toggle}
           className="flex h-10 w-10 items-center justify-center rounded-full bg-white shadow-sm transition-colors dark:bg-surface-dark"

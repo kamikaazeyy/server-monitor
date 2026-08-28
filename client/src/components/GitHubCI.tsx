@@ -1,8 +1,56 @@
+import { useEffect, useRef } from 'react';
 import { useGitHub } from '../hooks/useApi';
+import { useNotifications } from '../context/NotificationContext';
 import StatusBadge from './StatusBadge';
 
 export default function GitHubCI() {
   const { data, loading } = useGitHub(60000);
+  const { pushNotification } = useNotifications();
+
+  // --- Detect CI/CD workflow run status changes ---
+  const prevRunsRef = useRef<Map<string, { name: string; status: string; url: string }> | null>(null);
+  useEffect(() => {
+    if (!data?.runs) return;
+    const currentMap = new Map(data.runs.map((r) => [r.url, { name: r.name, status: r.status, url: r.url }]));
+    const prev = prevRunsRef.current;
+    if (prev) {
+      for (const [url, info] of currentMap) {
+        const old = prev.get(url);
+        if (!old) {
+          // New run appeared
+          pushNotification('ci', 'New CI/CD Run', `Workflow "${info.name}" started (${info.status}).`);
+        } else if (old.status !== info.status) {
+          const status = info.status.toLowerCase();
+          if (status === 'success' || status === 'completed') {
+            pushNotification('ci', 'CI/CD Run Succeeded', `Workflow "${info.name}" completed successfully.`);
+          } else if (status === 'failure' || status === 'failed') {
+            pushNotification('ci', 'CI/CD Run Failed', `Workflow "${info.name}" failed. Check the logs.`);
+          } else if (status === 'cancelled' || status === 'canceled') {
+            pushNotification('ci', 'CI/CD Run Cancelled', `Workflow "${info.name}" was cancelled.`);
+          } else {
+            pushNotification('ci', 'CI/CD Status Updated', `Workflow "${info.name}" is now ${info.status}.`, undefined, true);
+          }
+        }
+      }
+    }
+    prevRunsRef.current = currentMap;
+  }, [data?.runs, pushNotification]);
+
+  // --- Detect new pull requests ---
+  const prevPRsRef = useRef<Set<number> | null>(null);
+  useEffect(() => {
+    if (!data?.pulls) return;
+    const currentIds = new Set(data.pulls.map((p) => p.number));
+    const prev = prevPRsRef.current;
+    if (prev) {
+      for (const pr of data.pulls) {
+        if (!prev.has(pr.number)) {
+          pushNotification('ci', 'New Pull Request', `PR #${pr.number}: ${pr.title}`);
+        }
+      }
+    }
+    prevPRsRef.current = currentIds;
+  }, [data?.pulls, pushNotification]);
 
   if (loading && !data) {
     return <div className="p-8 text-muted">Loading GitHub data…</div>;

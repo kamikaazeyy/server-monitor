@@ -58,3 +58,16 @@ body {
     @apply bg-black/5 dark:bg-white/10 text-muted dark:text-gray-300;
   }
 }
+
+/* Make the xterm canvas respect the parent container's rounded corners */
+.xterm {
+  border-radius: inherit !important;
+  overflow: hidden !important;
+  height: 100% !important;
+  width: 100% !important;
+}
+
+.xterm .xterm-viewport,
+.xterm .xterm-screen {
+  border-radius: inherit !important;
+}

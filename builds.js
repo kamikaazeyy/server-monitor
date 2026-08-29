@@ -126,7 +126,37 @@ function normalizeBuildStatus(status) {
 }
 
 function parseEasBuild(raw) {
-  const parsed = JSON.parse(raw);
+  const trimmed = String(raw).trim();
+  let parsed;
+  try {
+    parsed = JSON.parse(trimmed);
+  } catch {
+    // EAS CLI may output warnings or progress text before the JSON.
+    // Try to extract the first JSON object or array from the output.
+    const jsonStart = trimmed.search(/[[{]/);
+    if (jsonStart < 0) {
+      throw new Error('EAS returned no JSON output. Raw output: ' + trimmed.slice(0, 500));
+    }
+    // Find the matching closing bracket
+    const slice = trimmed.slice(jsonStart);
+    try {
+      parsed = JSON.parse(slice);
+    } catch {
+      // Try progressively shorter slices to find valid JSON
+      let lastError;
+      for (let end = slice.length; end > 0; end--) {
+        try {
+          parsed = JSON.parse(slice.slice(0, end));
+          break;
+        } catch (e) {
+          lastError = e;
+        }
+      }
+      if (!parsed) {
+        throw new Error('Failed to parse EAS JSON output: ' + (lastError?.message || 'unknown error'));
+      }
+    }
+  }
   const build = Array.isArray(parsed) ? parsed[0] : parsed?.build || parsed;
   if (!build || typeof build !== 'object' || !build.id) {
     throw new Error('EAS returned an invalid build JSON response');
@@ -283,6 +313,8 @@ function pollBuildStatus(io, buildId) {
             emitLog(io, buildId, `Artifact downloaded successfully (${size} bytes)`, 'stdout');
           } catch (err) {
             emitLog(io, buildId, `Download failed: ${err.message}`, 'stderr');
+            updateIndexEntry(buildId, { status: 'mirror_failed' });
+            emitStatus(io, buildId, 'mirror_failed');
           }
           return;
         }
@@ -342,6 +374,14 @@ function pruneBuilds() {
 // --- Build mapping helper ----------------------------------------------------
 
 function mapEasBuild(b, localEntry) {
+  // Normalize artifact URL — EAS may return applicationArchiveUrl or artifactUrl
+  const artifacts = b.artifacts
+    ? {
+        ...b.artifacts,
+        artifactUrl: b.artifacts.artifactUrl || b.artifacts.applicationArchiveUrl || null,
+        buildUrl: b.artifacts.buildUrl || null,
+      }
+    : null;
   return {
     id: b.id,
     profile: b.buildProfile,
@@ -357,7 +397,7 @@ function mapEasBuild(b, localEntry) {
     message: b.message,
     createdAt: b.createdAt,
     updatedAt: b.updatedAt,
-    artifacts: b.artifacts,
+    artifacts,
     submissionStatus: b.submissionStatus,
     localApkAvailable: localEntry ? fs.existsSync(getApkPath(b.id)) : false,
     sizeBytes: localEntry?.sizeBytes || null,
@@ -584,6 +624,11 @@ module.exports = function createBuildsRouter(io) {
       return res.status(400).json({ error: `Invalid profile. Must be one of: ${validProfiles.join(', ')}` });
     }
 
+    // Pre-flight: verify FITSO_MOBILE_DIR exists
+    if (!fs.existsSync(FITSO_MOBILE_DIR)) {
+      return res.status(500).json({ error: `FITSO_MOBILE_DIR does not exist: ${FITSO_MOBILE_DIR}` });
+    }
+
     const args = [
       'build',
       '--platform', 'android',
@@ -597,7 +642,12 @@ module.exports = function createBuildsRouter(io) {
     }
 
     const env = { ...process.env, EXPO_TOKEN: EAS_TOKEN };
-    const child = spawn('eas', args, { cwd: FITSO_MOBILE_DIR, env });
+    let child;
+    try {
+      child = spawn('eas', args, { cwd: FITSO_MOBILE_DIR, env });
+    } catch (err) {
+      return res.status(500).json({ error: `Failed to spawn eas CLI: ${err.message}. Is eas installed and in PATH?` });
+    }
 
     let stdout = '';
     const pendingLogs = [];

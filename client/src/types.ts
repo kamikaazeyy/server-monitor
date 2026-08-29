@@ -123,6 +123,7 @@ export interface BuildArtifact {
   packagerUrl?: string;
   manifestUrl?: string;
   artifactUrl?: string;
+  applicationArchiveUrl?: string;
   buildUrl?: string;
 }
 

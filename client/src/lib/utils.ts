@@ -15,7 +15,7 @@ export function formatUptime(seconds: number) {
 
 export function classForState(state: string) {
   const s = state.toLowerCase();
-  if (s === 'running' || s === 'active' || s === 'success') {
+  if (s === 'running' || s === 'active' || s === 'success' || s === 'downloaded' || s === 'finished') {
     return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400';
   }
   if (s === 'open') {
@@ -27,10 +27,10 @@ export function classForState(state: string) {
   if (s === 'closed') {
     return 'bg-slate-100 text-slate-700 dark:bg-slate-900/30 dark:text-slate-400';
   }
-  if (s === 'failed' || s === 'failure' || s === 'inactive') {
+  if (s === 'failed' || s === 'failure' || s === 'inactive' || s === 'errored' || s === 'mirror failed') {
     return 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400';
   }
-  if (s === 'exited') {
+  if (s === 'exited' || s === 'canceled' || s === 'cancelled') {
     return 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400';
   }
   return 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300';

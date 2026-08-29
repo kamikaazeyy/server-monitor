@@ -27,6 +27,10 @@ function isBuildActive(status: string): boolean {
   return s === 'new' || s === 'in queue' || s === 'in progress' || s === 'pending' || s === 'downloading' || s === 'mirroring';
 }
 
+function isMirrorFailed(status: string): boolean {
+  return normalizeBuildStatus(status) === 'mirror failed';
+}
+
 function formatBytes(bytes: number): string {
   if (!bytes || bytes === 0) return '—';
   const mb = bytes / (1024 * 1024);
@@ -290,7 +294,7 @@ export default function FitsoBuilds() {
     socket.on('build:status', (data: { buildId: string; status: string; sizeBytes?: number }) => {
       const status = normalizeBuildStatus(data.status);
       setLiveBuilds((prev) => ({ ...prev, [data.buildId]: { status, sizeBytes: data.sizeBytes } }));
-      if (status === 'downloaded' || status === 'finished' || status === 'errored' || status === 'canceled') {
+      if (status === 'downloaded' || status === 'finished' || status === 'errored' || status === 'canceled' || status === 'mirror failed') {
         setProgressMap((prev) => {
           const next = { ...prev };
           delete next[data.buildId];
@@ -605,9 +609,9 @@ export default function FitsoBuilds() {
                 </thead>
                 <tbody>
                   {historyBuilds.map((build: EasBuild) => {
-                    const artifactUrl = build.artifacts?.artifactUrl;
+                    const artifactUrl = build.artifacts?.artifactUrl || build.artifacts?.applicationArchiveUrl;
                     const buildUrl = build.artifacts?.buildUrl;
-                    const isFinished = build.status.toLowerCase() === 'finished';
+                    const isFinished = build.status.toLowerCase() === 'finished' || build.status.toLowerCase() === 'mirror_failed';
                     const isDownloading = build.status.toLowerCase() === 'downloading' || build.status.toLowerCase() === 'mirroring' || !!progressMap[build.id];
                     const prog = progressMap[build.id];
                     return (
@@ -667,6 +671,20 @@ export default function FitsoBuilds() {
                                   <Loader2 size={14} className="animate-spin" />
                                   {prog ? `${formatBytes(prog.received)}` : 'Mirroring…'}
                                 </span>
+                              ) : isMirrorFailed(build.status) && artifactUrl ? (
+                                <button
+                                  onClick={() => handleMirror(build.id)}
+                                  disabled={mirroringId === build.id}
+                                  className="inline-flex items-center gap-1.5 rounded-full bg-red-100 px-3 py-1.5 text-xs font-medium text-red-700 transition-colors hover:bg-red-200 disabled:opacity-60 dark:bg-red-900/30 dark:text-red-300"
+                                  title="Previous mirror attempt failed. Click to retry."
+                                >
+                                  {mirroringId === build.id ? (
+                                    <Loader2 size={14} className="animate-spin" />
+                                  ) : (
+                                    <Download size={14} />
+                                  )}
+                                  Retry Mirror
+                                </button>
                               ) : isFinished && artifactUrl ? (
                                 <button
                                   onClick={() => handleMirror(build.id)}

@@ -1,19 +1,46 @@
 const crypto = require('crypto');
+const fs = require('fs');
+const path = require('path');
+const jwt = require('jsonwebtoken');
 
-// Token resolution: DASHBOARD_TOKEN env var, else generate a random one and
-// print it once so a first-run deployer can log in.
-let token = process.env.DASHBOARD_TOKEN;
-if (!token) {
-  token = crypto.randomBytes(24).toString('base64url');
-  console.warn('[auth] DASHBOARD_TOKEN not set — generated a random token:');
-  console.warn(`[auth]   ${token}`);
-  console.warn('[auth] Set DASHBOARD_TOKEN in .env to keep it stable across restarts.');
+// Credentials live in .auth.json next to this file: { username, salt, hash,
+// jwtSecret, createdAt }. Created once via the signup endpoint; deleting it
+// (scripts/reset-auth.sh) re-opens signup.
+const AUTH_FILE = process.env.AUTH_FILE || path.join(__dirname, '.auth.json');
+const TOKEN_TTL = '30d';
+const SCRYPT_KEYLEN = 64;
+const USERNAME_RE = /^[a-zA-Z0-9_.-]{3,32}$/;
+
+function loadCreds() {
+  try {
+    return JSON.parse(fs.readFileSync(AUTH_FILE, 'utf8'));
+  } catch {
+    return null;
+  }
+}
+
+function hashPassword(password, salt) {
+  return crypto.scryptSync(String(password), salt, SCRYPT_KEYLEN).toString('hex');
 }
 
 function safeEqual(a, b) {
   const ba = Buffer.from(String(a));
   const bb = Buffer.from(String(b));
   return ba.length === bb.length && crypto.timingSafeEqual(ba, bb);
+}
+
+function issueToken(username, secret) {
+  return jwt.sign({ sub: username }, secret, { expiresIn: TOKEN_TTL });
+}
+
+function verifyToken(raw) {
+  const creds = loadCreds();
+  if (!creds || !raw) return null;
+  try {
+    return jwt.verify(raw, creds.jwtSecret);
+  } catch {
+    return null;
+  }
 }
 
 function extractToken(req) {
@@ -24,23 +51,72 @@ function extractToken(req) {
   return null;
 }
 
+function statusHandler(req, res) {
+  const creds = loadCreds();
+  res.json({ needsSetup: !creds, username: creds ? creds.username : null });
+}
+
+function signupHandler(req, res) {
+  const { username, password } = req.body || {};
+  const name = typeof username === 'string' ? username.trim() : '';
+  if (!USERNAME_RE.test(name)) {
+    return res.status(400).json({ error: 'Username must be 3-32 chars: letters, numbers, . _ -' });
+  }
+  if (typeof password !== 'string' || password.length < 8) {
+    return res.status(400).json({ error: 'Password must be at least 8 characters' });
+  }
+
+  const salt = crypto.randomBytes(16).toString('hex');
+  const record = {
+    username: name,
+    salt,
+    hash: hashPassword(password, salt),
+    jwtSecret: crypto.randomBytes(32).toString('hex'),
+    createdAt: new Date().toISOString(),
+  };
+
+  try {
+    // 'wx' fails if the file already exists — first signup wins.
+    fs.writeFileSync(AUTH_FILE, JSON.stringify(record, null, 2), { mode: 0o600, flag: 'wx' });
+  } catch (err) {
+    if (err.code === 'EEXIST') {
+      return res.status(403).json({ error: 'Account already exists — sign in instead' });
+    }
+    throw err;
+  }
+
+  res.json({ token: issueToken(name, record.jwtSecret), username: name });
+}
+
+async function loginHandler(req, res) {
+  const creds = loadCreds();
+  if (!creds) {
+    return res.status(400).json({ error: 'No account yet — complete setup first' });
+  }
+  const { username, password } = req.body || {};
+  const ok =
+    safeEqual(String(username || '').trim(), creds.username) &&
+    safeEqual(hashPassword(password || '', creds.salt), creds.hash);
+  if (ok) {
+    return res.json({ token: issueToken(creds.username, creds.jwtSecret), username: creds.username });
+  }
+  await new Promise((resolve) => setTimeout(resolve, 500));
+  res.status(401).json({ error: 'Invalid username or password' });
+}
+
 function requireAuth(req, res, next) {
-  const candidate = extractToken(req);
-  if (candidate && safeEqual(candidate, token)) return next();
+  const payload = verifyToken(extractToken(req));
+  if (payload) {
+    req.user = payload.sub;
+    return next();
+  }
   res.status(401).json({ error: 'Unauthorized' });
 }
 
 function socketAuth(socket, next) {
-  const candidate = socket.handshake.auth && socket.handshake.auth.token;
-  if (candidate && safeEqual(candidate, token)) return next();
+  const payload = verifyToken(socket.handshake.auth && socket.handshake.auth.token);
+  if (payload) return next();
   next(new Error('Unauthorized'));
 }
 
-async function loginHandler(req, res) {
-  const candidate = req.body && req.body.token;
-  if (candidate && safeEqual(candidate, token)) return res.json({ ok: true });
-  await new Promise((resolve) => setTimeout(resolve, 500));
-  res.status(401).json({ error: 'Invalid token' });
-}
-
-module.exports = { requireAuth, socketAuth, loginHandler };
+module.exports = { requireAuth, socketAuth, statusHandler, signupHandler, loginHandler };

@@ -7,7 +7,7 @@ const cors = require('cors');
 const monitorRouter = require('./monitor');
 const createBuildsRouter = require('./builds');
 const dbRouter = require('./db');
-const { requireAuth, socketAuth, loginHandler } = require('./auth');
+const { requireAuth, socketAuth, statusHandler, signupHandler, loginHandler } = require('./auth');
 
 const app = express();
 app.use(cors({
@@ -24,6 +24,8 @@ const io = new Server(httpServer, {
   },
 });
 
+app.get('/api/auth/status', statusHandler);
+app.post('/api/auth/signup', signupHandler);
 app.post('/api/auth/login', loginHandler);
 app.use('/api', requireAuth);
 

@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import Sidebar from './components/Sidebar';
 import MobileNav from './components/MobileNav';
 import Header from './components/Header';
@@ -11,7 +11,7 @@ import SpeedTest from './components/SpeedTest';
 import TerminalWidget from './components/TerminalWidget';
 import FitsoBuilds from './components/FitsoBuilds';
 import Database from './components/Database';
-import Login from './components/Login';
+import AuthScreen from './components/AuthScreen';
 import { getToken } from './lib/auth';
 
 type Tab = 'overview' | 'containers' | 'projects' | 'services' | 'github' | 'builds' | 'speed' | 'terminal' | 'database';
@@ -32,13 +32,28 @@ function View({ tab, setTab }: { tab: Tab; setTab: (tab: string) => void }): Rea
   );
 }
 
+type AuthState = 'loading' | 'setup' | 'login' | 'authed';
+
 function App() {
   const [activeTab, setActiveTab] = useState<Tab>('overview');
-  const [authed, setAuthed] = useState(() => Boolean(getToken()));
+  const [authState, setAuthState] = useState<AuthState>('loading');
   const setTab = (tab: string) => setActiveTab(tab as Tab);
 
-  if (!authed) {
-    return <Login onSuccess={() => setAuthed(true)} />;
+  useEffect(() => {
+    fetch('/api/auth/status')
+      .then((res) => res.json())
+      .then((status) => {
+        setAuthState(status.needsSetup ? 'setup' : getToken() ? 'authed' : 'login');
+      })
+      .catch(() => setAuthState(getToken() ? 'authed' : 'login'));
+  }, []);
+
+  if (authState === 'loading') {
+    return <div className="h-screen bg-bg dark:bg-bg-dark" />;
+  }
+
+  if (authState !== 'authed') {
+    return <AuthScreen needsSetup={authState === 'setup'} onSuccess={() => setAuthState('authed')} />;
   }
 
   return (

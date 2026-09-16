@@ -43,15 +43,15 @@ cd client && npm run dev
 
 ## Authentication
 
-All API routes, the web terminal, and socket connections are protected by a token. Set `DASHBOARD_TOKEN` in your `.env`. If unset, a random token is generated at startup and printed to the console — sign in with it at the dashboard login screen.
+All API routes, the web terminal, and socket connections are protected by authentication. On first launch the dashboard shows a **signup screen** — the first visitor creates the username/password account, which is stored (hashed) in `.auth.json` on the server. Afterwards it works as a normal login. Sessions use a JWT valid for 30 days.
 
-To create or rotate the token on a deployed server:
+If you get locked out or want to reset the account:
 
 ```bash
-sudo bash scripts/setup-auth.sh
+sudo bash scripts/reset-auth.sh
 ```
 
-It prompts for a token (blank = random), writes it to `.env`, and restarts the service. The CI deploy runs `scripts/setup-auth.sh --generate` automatically — on first deploy it prints the generated token in the workflow log; afterwards it leaves your existing token untouched.
+This deletes `.auth.json` and restarts the service — the next visitor will see the signup screen again.
 
 ## Configuration
 
@@ -59,5 +59,5 @@ It prompts for a token (blank = random), writes it to `.env`, and restarts the s
 |---|---|---|
 | `PORT` | HTTP port | `3000` |
 | `HOST` | Bind address | `0.0.0.0` |
-| `DASHBOARD_TOKEN` | Auth token for API/sockets/terminal | random per start |
 | `MONITOR_REPO` | GitHub repo to watch | `kamikaazeyy/fitso` |
+| `AUTH_FILE` | Path to the credentials file | `./.auth.json` |

@@ -45,6 +45,14 @@ cd client && npm run dev
 
 All API routes, the web terminal, and socket connections are protected by a token. Set `DASHBOARD_TOKEN` in your `.env`. If unset, a random token is generated at startup and printed to the console — sign in with it at the dashboard login screen.
 
+To create or rotate the token on a deployed server:
+
+```bash
+sudo bash scripts/setup-auth.sh
+```
+
+It prompts for a token (blank = random), writes it to `.env`, and restarts the service. The CI deploy runs `scripts/setup-auth.sh --generate` automatically — on first deploy it prints the generated token in the workflow log; afterwards it leaves your existing token untouched.
+
 ## Configuration
 
 | Environment variable | Description | Default |

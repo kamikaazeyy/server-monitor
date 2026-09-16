@@ -133,7 +133,7 @@ class PostgresAdapter extends BaseAdapter {
          JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = ANY(i.indkey)
          WHERE i.indrelid = $1::regclass AND i.indisprimary
          LIMIT 1`,
-        [`public.${tableName}`]
+        [`${quoteIdent('public')}.${quoteIdent(tableName)}`]
       ),
     ]);
 
@@ -182,7 +182,7 @@ class PostgresAdapter extends BaseAdapter {
        JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = ANY(i.indkey)
        WHERE i.indrelid = $1::regclass AND i.indisprimary
        LIMIT 1`,
-      [`public.${tableName}`]
+      [`${quoteIdent('public')}.${quoteIdent(tableName)}`]
     );
     const pkSet = new Set(pkRes.rows.map(r => r.attname));
 
@@ -240,7 +240,7 @@ class ConnectionManager {
     return `${containerId}:${dbName}`;
   }
 
-  async getPool(containerId, dbName, poolConfig) {
+  getPool(containerId, dbName, poolConfig) {
     const key = this._key(containerId, dbName);
     let entry = this.entries.get(key);
     if (!entry) {

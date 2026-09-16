@@ -6,6 +6,7 @@ import { useBuilds, triggerBuild, cancelBuild, mirrorBuild, deleteBuild, fetchBu
 import type { EasBuild } from '../types';
 import StatusBadge from './StatusBadge';
 import { classForState } from '../lib/utils';
+import { getToken, handleSocketError } from '../lib/auth';
 
 function timeAgo(iso: string): string {
   if (!iso) return '—';
@@ -73,7 +74,10 @@ function BuildLogConsole({ buildId }: { buildId: string }) {
     const socket = io(socketUrl, {
       path: '/socket.io/',
       transports: ['websocket', 'polling'],
+      auth: { token: getToken() },
     });
+
+    socket.on('connect_error', handleSocketError);
 
     socket.on('connect', () => {
       socket.emit('build:join', buildId);
@@ -175,7 +179,7 @@ function BuildLogConsole({ buildId }: { buildId: string }) {
 // --- QR Modal ----------------------------------------------------------------
 
 function QrModal({ buildId, onClose }: { buildId: string; onClose: () => void }) {
-  const apkUrl = `${window.location.origin}/api/builds/${buildId}/apk`;
+  const apkUrl = `${window.location.origin}/api/builds/${buildId}/apk?token=${encodeURIComponent(getToken())}`;
   const [copied, setCopied] = useState(false);
 
   const copyUrl = () => {
@@ -284,8 +288,11 @@ export default function FitsoBuilds() {
     const socket = io(socketUrl, {
       path: '/socket.io/',
       transports: ['websocket', 'polling'],
+      auth: { token: getToken() },
     });
     buildSocketRef.current = socket;
+
+    socket.on('connect_error', handleSocketError);
 
     socket.on('build:progress', (data: { buildId: string; received: number; total: number }) => {
       setProgressMap((prev) => ({ ...prev, [data.buildId]: { received: data.received, total: data.total } }));

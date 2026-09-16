@@ -41,6 +41,18 @@ cd client && npm run dev
 - `gh` CLI authenticated with GitHub (for PR/CI data)
 - `curl` (for the speed test)
 
+## Authentication
+
+All API routes, the web terminal, and socket connections are protected by authentication. On first launch the dashboard shows a **signup screen** — the first visitor creates the username/password account, which is stored (hashed) in `.auth.json` on the server. Afterwards it works as a normal login. Sessions use a JWT valid for 30 days.
+
+If you get locked out or want to reset the account:
+
+```bash
+sudo bash scripts/reset-auth.sh
+```
+
+This deletes `.auth.json` and restarts the service — the next visitor will see the signup screen again.
+
 ## Configuration
 
 | Environment variable | Description | Default |
@@ -48,3 +60,4 @@ cd client && npm run dev
 | `PORT` | HTTP port | `3000` |
 | `HOST` | Bind address | `0.0.0.0` |
 | `MONITOR_REPO` | GitHub repo to watch | `kamikaazeyy/fitso` |
+| `AUTH_FILE` | Path to the credentials file | `./.auth.json` |

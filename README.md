@@ -41,10 +41,15 @@ cd client && npm run dev
 - `gh` CLI authenticated with GitHub (for PR/CI data)
 - `curl` (for the speed test)
 
+## Authentication
+
+All API routes, the web terminal, and socket connections are protected by a token. Set `DASHBOARD_TOKEN` in your `.env`. If unset, a random token is generated at startup and printed to the console — sign in with it at the dashboard login screen.
+
 ## Configuration
 
 | Environment variable | Description | Default |
 |---|---|---|
 | `PORT` | HTTP port | `3000` |
 | `HOST` | Bind address | `0.0.0.0` |
+| `DASHBOARD_TOKEN` | Auth token for API/sockets/terminal | random per start |
 | `MONITOR_REPO` | GitHub repo to watch | `kamikaazeyy/fitso` |

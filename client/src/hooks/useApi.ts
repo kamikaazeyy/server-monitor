@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
+import { authFetch } from '../lib/auth';
 import type {
   OverviewData,
   NetworkData,
@@ -23,7 +24,7 @@ function useFetch<T>(url: string, interval = 5000) {
 
   const fetchData = useCallback(async () => {
     try {
-      const res = await fetch(url);
+      const res = await authFetch(url);
       if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
       const json = await res.json();
       setData(json);
@@ -66,7 +67,7 @@ export const useHistory = (interval = 1000) =>
   useFetch<HistoryPoint[]>('/api/monitor/history', interval);
 
 export async function runSpeedTest(): Promise<SpeedTestResult> {
-  const res = await fetch('/api/monitor/speedtest', { method: 'POST' });
+  const res = await authFetch('/api/monitor/speedtest', { method: 'POST' });
   return res.json();
 }
 
@@ -74,7 +75,7 @@ export async function containerAction(
   name: string,
   action: 'start' | 'stop' | 'restart'
 ): Promise<{ ok: boolean; name: string; action: string }> {
-  const res = await fetch('/api/monitor/containers/action', {
+  const res = await authFetch('/api/monitor/containers/action', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name, action }),
@@ -93,7 +94,7 @@ export async function triggerBuild(
   profile: 'preview' | 'development',
   message?: string
 ): Promise<TriggerBuildResponse> {
-  const res = await fetch('/api/builds', {
+  const res = await authFetch('/api/builds', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ profile, message }),
@@ -106,7 +107,7 @@ export async function triggerBuild(
 }
 
 export async function cancelBuild(buildId: string): Promise<{ ok: boolean; id: string }> {
-  const res = await fetch(`/api/builds/${buildId}/cancel`, { method: 'POST' });
+  const res = await authFetch(`/api/builds/${buildId}/cancel`, { method: 'POST' });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err.error || `${res.status} ${res.statusText}`);
@@ -115,7 +116,7 @@ export async function cancelBuild(buildId: string): Promise<{ ok: boolean; id: s
 }
 
 export async function mirrorBuild(buildId: string): Promise<{ ok: boolean; id: string; message: string }> {
-  const res = await fetch(`/api/builds/${buildId}/mirror`, { method: 'POST' });
+  const res = await authFetch(`/api/builds/${buildId}/mirror`, { method: 'POST' });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err.error || `${res.status} ${res.statusText}`);
@@ -124,7 +125,7 @@ export async function mirrorBuild(buildId: string): Promise<{ ok: boolean; id: s
 }
 
 export async function deleteBuild(buildId: string): Promise<{ ok: boolean; id: string }> {
-  const res = await fetch(`/api/builds/${buildId}`, { method: 'DELETE' });
+  const res = await authFetch(`/api/builds/${buildId}`, { method: 'DELETE' });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err.error || `${res.status} ${res.statusText}`);
@@ -133,7 +134,7 @@ export async function deleteBuild(buildId: string): Promise<{ ok: boolean; id: s
 }
 
 export async function fetchBuildLog(buildId: string): Promise<string> {
-  const res = await fetch(`/api/builds/${buildId}/log`);
+  const res = await authFetch(`/api/builds/${buildId}/log`);
   if (!res.ok) return '';
   return res.text();
 }
@@ -152,7 +153,7 @@ export function useDatabases(containerId: string | null) {
     if (!containerId) { setData(null); return; }
     setLoading(true);
     try {
-      const res = await fetch(`/api/db/${containerId}/databases`);
+      const res = await authFetch(`/api/db/${containerId}/databases`);
       if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
       const json = await res.json();
       setData(json);
@@ -180,7 +181,7 @@ export function useTables(containerId: string | null, dbName: string | null) {
     if (!containerId || !dbName) { setData(null); return; }
     setLoading(true);
     try {
-      const res = await fetch(`/api/db/${containerId}/${dbName}/tables`);
+      const res = await authFetch(`/api/db/${containerId}/${dbName}/tables`);
       if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
       const json = await res.json();
       setData(json);
@@ -224,7 +225,7 @@ export function useTableData(
         params.set('sort', sortCol);
         params.set('dir', sortDir);
       }
-      const res = await fetch(`/api/db/${containerId}/${dbName}/${table}/data?${params}`);
+      const res = await authFetch(`/api/db/${containerId}/${dbName}/${table}/data?${params}`);
       if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
       const json = await res.json();
       setData(json);
@@ -256,7 +257,7 @@ export function useTableSchema(
     if (!containerId || !dbName || !table) { setData(null); return; }
     setLoading(true);
     try {
-      const res = await fetch(`/api/db/${containerId}/${dbName}/${table}/schema`);
+      const res = await authFetch(`/api/db/${containerId}/${dbName}/${table}/schema`);
       if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
       const json = await res.json();
       setData(json);

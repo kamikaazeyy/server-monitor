@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { io } from 'socket.io-client';
+import { getToken, handleSocketError } from '../lib/auth';
 import '@xterm/xterm/css/xterm.css';
 
 function getTerminalFontSize(width: number): number {
@@ -55,7 +56,10 @@ export default function TerminalWidget() {
     const socket = io(socketUrl, {
       path: '/socket.io/',
       transports: ['websocket', 'polling'],
+      auth: { token: getToken() },
     });
+
+    socket.on('connect_error', handleSocketError);
 
     socket.on('connect', () => {
       const dims = fitAddon.proposeDimensions();

@@ -8,6 +8,7 @@ import {
   type ReactNode,
 } from 'react';
 import { io } from 'socket.io-client';
+import { getToken, handleSocketError } from '../lib/auth';
 
 export type NotificationType =
   | 'build'
@@ -146,7 +147,10 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     const socket = io(socketUrl, {
       path: '/socket.io/',
       transports: ['websocket', 'polling'],
+      auth: { token: getToken() },
     });
+
+    socket.on('connect_error', handleSocketError);
 
     const handleBuildStatus = (data: { buildId: string; status: string; sizeBytes?: number }) => {
       const status = String(data.status || '').toLowerCase().replace(/_/g, ' ');

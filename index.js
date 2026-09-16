@@ -7,6 +7,7 @@ const cors = require('cors');
 const monitorRouter = require('./monitor');
 const createBuildsRouter = require('./builds');
 const dbRouter = require('./db');
+const { requireAuth, socketAuth, loginHandler } = require('./auth');
 
 const app = express();
 app.use(cors({
@@ -23,24 +24,14 @@ const io = new Server(httpServer, {
   },
 });
 
+app.post('/api/auth/login', loginHandler);
+app.use('/api', requireAuth);
+
 app.use(monitorRouter);
 app.use(createBuildsRouter(io));
 app.use(dbRouter);
 
-// ---------------------------------------------------------------------------
-// SECURITY NOTICE: Terminal access is powerful. Authentication middleware
-// MUST be added here BEFORE the WebSocket upgrade so unauthorized clients cannot
-// connect at all. Example:
-//
-// io.use((socket, next) => {
-//   const token = socket.handshake.auth?.token;
-//   if (!validateToken(token)) return next(new Error('Unauthorized'));
-//   next();
-// });
-//
-// This is a placeholder only. Replace `validateToken` with your JWT/session
-// or reverse-proxy auth check. No database auth implementation is included.
-// ---------------------------------------------------------------------------
+io.use(socketAuth);
 
 if (process.getuid && process.getuid() === 0 && !process.env.TERMINAL_ALLOW_ROOT) {
   console.error('[terminal] Refusing to spawn shells as root. Run as a non-root user or set TERMINAL_ALLOW_ROOT=true.');

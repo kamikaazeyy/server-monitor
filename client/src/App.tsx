@@ -11,6 +11,8 @@ import SpeedTest from './components/SpeedTest';
 import TerminalWidget from './components/TerminalWidget';
 import FitsoBuilds from './components/FitsoBuilds';
 import Database from './components/Database';
+import Login from './components/Login';
+import { getToken } from './lib/auth';
 
 type Tab = 'overview' | 'containers' | 'projects' | 'services' | 'github' | 'builds' | 'speed' | 'terminal' | 'database';
 
@@ -32,7 +34,12 @@ function View({ tab, setTab }: { tab: Tab; setTab: (tab: string) => void }): Rea
 
 function App() {
   const [activeTab, setActiveTab] = useState<Tab>('overview');
+  const [authed, setAuthed] = useState(() => Boolean(getToken()));
   const setTab = (tab: string) => setActiveTab(tab as Tab);
+
+  if (!authed) {
+    return <Login onSuccess={() => setAuthed(true)} />;
+  }
 
   return (
     <div className="flex h-screen overflow-hidden bg-bg dark:bg-bg-dark">

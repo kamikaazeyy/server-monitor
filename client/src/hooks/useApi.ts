@@ -15,6 +15,11 @@ import type {
   TableInfo,
   ColumnInfo,
   TableDataResponse,
+  EnvProjectsResponse,
+  EnvVar,
+  EnvContainer,
+  ContainerEnvVar,
+  EnvDirGroup,
 } from '../types';
 
 function useFetch<T>(url: string, interval = 5000) {
@@ -274,4 +279,158 @@ export function useTableSchema(
   }, [fetchSchema]);
 
   return { data, loading, error, refresh: fetchSchema };
+}
+
+// --- Env / secrets manager hooks ---
+
+export const useEnvProjects = (interval = 15000) =>
+  useFetch<EnvProjectsResponse>('/api/env/projects', interval);
+
+export function useEnvVars(projectId: string | null) {
+  const [data, setData] = useState<EnvVar[] | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchVars = useCallback(async () => {
+    if (!projectId) { setData(null); return; }
+    setLoading(true);
+    try {
+      const res = await authFetch(`/api/env/projects/${projectId}/vars`);
+      if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+      const json = await res.json();
+      setData(json);
+      setError(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Error');
+    } finally {
+      setLoading(false);
+    }
+  }, [projectId]);
+
+  useEffect(() => {
+    fetchVars();
+  }, [fetchVars]);
+
+  return { data, loading, error, refresh: fetchVars };
+}
+
+async function envRequest(url: string, method: string, body?: unknown) {
+  const res = await authFetch(url, {
+    method,
+    headers: body !== undefined ? { 'Content-Type': 'application/json' } : undefined,
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || `${res.status} ${res.statusText}`);
+  }
+  return res.json();
+}
+
+export function createEnvProject(payload: { name: string; description?: string; composeProject?: string }) {
+  return envRequest('/api/env/projects', 'POST', payload);
+}
+
+export function updateEnvProject(id: string, payload: { name?: string; description?: string; composeProject?: string | null }) {
+  return envRequest(`/api/env/projects/${id}`, 'PATCH', payload);
+}
+
+export function deleteEnvProject(id: string) {
+  return envRequest(`/api/env/projects/${id}`, 'DELETE');
+}
+
+export function upsertEnvVar(projectId: string, payload: { key: string; value: string; secret: boolean }) {
+  return envRequest(`/api/env/projects/${projectId}/vars`, 'PUT', payload);
+}
+
+export function deleteEnvVar(projectId: string, key: string) {
+  return envRequest(`/api/env/projects/${projectId}/vars/${encodeURIComponent(key)}`, 'DELETE');
+}
+
+export function importEnvVars(projectId: string, content: string, markSecrets: boolean): Promise<{ ok: boolean; added: number; updated: number }> {
+  return envRequest(`/api/env/projects/${projectId}/import`, 'POST', { content, markSecrets });
+}
+
+export function importEnvFile(projectId: string, path: string, markSecrets = true): Promise<{ ok: boolean; added: number; updated: number }> {
+  return envRequest(`/api/env/projects/${projectId}/import-file`, 'POST', { path, markSecrets });
+}
+
+export function useEnvScan() {
+  const [data, setData] = useState<EnvDirGroup[] | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchScan = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await authFetch('/api/env/scan');
+      if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+      setData(await res.json());
+      setError(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Error');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchScan();
+  }, [fetchScan]);
+
+  return { data, loading, error, refresh: fetchScan };
+}
+
+export async function exportEnvProject(projectId: string, projectName: string): Promise<void> {
+  const res = await authFetch(`/api/env/projects/${projectId}/export`);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || `${res.status} ${res.statusText}`);
+  }
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${projectName}.env`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+export const useEnvContainers = (interval = 0) => {
+  const [data, setData] = useState<EnvContainer[] | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchContainers = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await authFetch('/api/env/containers');
+      if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+      setData(await res.json());
+      setError(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Error');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchContainers();
+    if (interval > 0) {
+      const id = setInterval(fetchContainers, interval);
+      return () => clearInterval(id);
+    }
+  }, [fetchContainers, interval]);
+
+  return { data, loading, error, refresh: fetchContainers };
+};
+
+export async function fetchContainerEnvVars(name: string): Promise<ContainerEnvVar[]> {
+  const res = await authFetch(`/api/env/containers/${encodeURIComponent(name)}/vars`);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || `${res.status} ${res.statusText}`);
+  }
+  return res.json();
 }

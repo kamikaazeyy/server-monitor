@@ -11,10 +11,11 @@ import SpeedTest from './components/SpeedTest';
 import TerminalWidget from './components/TerminalWidget';
 import FitsoBuilds from './components/FitsoBuilds';
 import Database from './components/Database';
+import EnvManager from './components/EnvManager';
 import AuthScreen from './components/AuthScreen';
 import { getToken } from './lib/auth';
 
-type Tab = 'overview' | 'containers' | 'projects' | 'services' | 'github' | 'builds' | 'speed' | 'terminal' | 'database';
+type Tab = 'overview' | 'containers' | 'projects' | 'services' | 'github' | 'builds' | 'speed' | 'terminal' | 'database' | 'env';
 
 function View({ tab, setTab }: { tab: Tab; setTab: (tab: string) => void }): ReactNode {
   return (
@@ -28,6 +29,7 @@ function View({ tab, setTab }: { tab: Tab; setTab: (tab: string) => void }): Rea
       <div className={tab === 'speed' ? '' : 'hidden'}><SpeedTest /></div>
       <div className={tab === 'terminal' ? '' : 'hidden'}><TerminalWidget /></div>
       <div className={tab === 'database' ? '' : 'hidden'}><Database /></div>
+      <div className={tab === 'env' ? '' : 'hidden'}><EnvManager /></div>
     </>
   );
 }

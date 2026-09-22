@@ -195,3 +195,60 @@ export interface TableDataResponse {
   page: number;
   limit: number;
 }
+
+// --- Env / secrets manager types ---
+
+export interface EnvProject {
+  id: string;
+  name: string;
+  description: string;
+  composeProject: string | null;
+  varCount: number;
+  secretCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface DiscoveredProject {
+  name: string;
+  containers: number;
+}
+
+export interface EnvFileInfo {
+  path: string;
+  dir: string;
+  mtime: number;
+}
+
+export interface EnvDirGroup {
+  dir: string;
+  name: string;
+  files: EnvFileInfo[];
+}
+
+export interface EnvProjectsResponse {
+  projects: EnvProject[];
+  discovered: DiscoveredProject[];
+  envDirs: EnvDirGroup[];
+}
+
+export interface EnvVar {
+  key: string;
+  value: string;
+  secret: boolean;
+  updatedAt: string;
+}
+
+export interface EnvContainer {
+  name: string;
+  image: string;
+  state: string;
+  project: string | null;
+  envCount: number;
+}
+
+export interface ContainerEnvVar {
+  key: string;
+  value: string;
+  secret: boolean;
+}

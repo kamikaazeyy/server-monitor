@@ -7,6 +7,7 @@ const cors = require('cors');
 const monitorRouter = require('./monitor');
 const createBuildsRouter = require('./builds');
 const dbRouter = require('./db');
+const envRouter = require('./env');
 const { requireAuth, socketAuth, statusHandler, signupHandler, loginHandler } = require('./auth');
 
 const app = express();
@@ -32,6 +33,7 @@ app.use('/api', requireAuth);
 app.use(monitorRouter);
 app.use(createBuildsRouter(io));
 app.use(dbRouter);
+app.use(envRouter);
 
 io.use(socketAuth);
 
@@ -97,7 +99,17 @@ app.get('/health', (req, res) => {
 });
 
 const DIST_DIR = path.join(__dirname, 'client', 'dist');
-app.use(express.static(DIST_DIR, { maxAge: '1d' }));
+app.use(express.static(DIST_DIR, {
+  setHeaders: (res, filePath) => {
+    if (filePath.endsWith('.html')) {
+      res.setHeader('Cache-Control', 'no-cache');
+    } else if (filePath.includes(`${path.sep}assets${path.sep}`)) {
+      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+    } else {
+      res.setHeader('Cache-Control', 'public, max-age=86400');
+    }
+  },
+}));
 
 app.get('/monitor', (req, res) => {
   res.sendFile(path.join(DIST_DIR, 'index.html'));

@@ -7,7 +7,7 @@ import {
   useCallback,
   type ReactNode,
 } from 'react';
-import { io } from 'socket.io-client';
+import { io, type Socket } from 'socket.io-client';
 import { getToken, handleSocketError } from '../lib/auth';
 
 export type NotificationType =
@@ -144,13 +144,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   // --- Socket.io listener for build status changes ---
   useEffect(() => {
     const socketUrl = import.meta.env.VITE_TERMINAL_URL || window.location.origin;
-    const socket = io(socketUrl, {
-      path: '/socket.io/',
-      transports: ['websocket', 'polling'],
-      auth: { token: getToken() },
-    });
-
-    socket.on('connect_error', handleSocketError);
+    let socket: Socket | null = null;
 
     const handleBuildStatus = (data: { buildId: string; status: string; sizeBytes?: number }) => {
       const status = String(data.status || '').toLowerCase().replace(/_/g, ' ');
@@ -172,11 +166,23 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       }
     };
 
-    socket.on('build:status', handleBuildStatus);
+    const connect = () => {
+      if (socket || !getToken()) return;
+      socket = io(socketUrl, {
+        path: '/socket.io/',
+        transports: ['websocket', 'polling'],
+        auth: (cb) => cb({ token: getToken() }),
+      });
+      socket.on('connect_error', handleSocketError);
+      socket.on('build:status', handleBuildStatus);
+    };
 
+    connect();
+    window.addEventListener('auth-changed', connect);
     return () => {
-      socket.off('build:status', handleBuildStatus);
-      socket.disconnect();
+      window.removeEventListener('auth-changed', connect);
+      socket?.disconnect();
+      socket = null;
     };
   }, [pushNotification]);
 

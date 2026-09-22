@@ -7,3 +7,6 @@ client/node_modules
 dist
 builds/
 IMPLEMENTATION_CONTEXT.md
+.envstore.json
+.envstore.json.tmp
+.envstore.key

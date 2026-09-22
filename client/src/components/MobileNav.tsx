@@ -8,11 +8,12 @@ import {
   Zap,
   Terminal,
   Database,
+  KeyRound,
   type LucideIcon,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 
-type Tab = 'overview' | 'containers' | 'projects' | 'services' | 'github' | 'builds' | 'speed' | 'terminal' | 'database';
+type Tab = 'overview' | 'containers' | 'projects' | 'services' | 'github' | 'builds' | 'speed' | 'terminal' | 'database' | 'env';
 
 interface MobileNavProps {
   active: Tab;
@@ -29,6 +30,7 @@ const items: { id: Tab; icon: LucideIcon; label: string }[] = [
   { id: 'speed', icon: Zap, label: 'Speed' },
   { id: 'terminal', icon: Terminal, label: 'Terminal' },
   { id: 'database', icon: Database, label: 'Database' },
+  { id: 'env', icon: KeyRound, label: 'Env' },
 ];
 
 export default function MobileNav({ active, onChange }: MobileNavProps) {

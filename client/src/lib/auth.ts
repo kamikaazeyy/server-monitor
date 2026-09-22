@@ -6,6 +6,7 @@ export function getToken(): string {
 
 export function setToken(token: string) {
   localStorage.setItem(KEY, token);
+  window.dispatchEvent(new Event('auth-changed'));
 }
 
 export function clearToken() {
@@ -13,6 +14,7 @@ export function clearToken() {
 }
 
 function forceReauth() {
+  if (!getToken()) return;
   clearToken();
   window.location.reload();
 }

@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef, useCallback, Fragment } from 'react';
 import { io } from 'socket.io-client';
 import { QRCodeSVG } from 'qrcode.react';
-import { Smartphone, Download, Loader2, Rocket, X, RefreshCw, QrCode, Copy, Trash2, ExternalLink, ChevronDown, ChevronUp, Terminal } from 'lucide-react';
-import { useBuilds, triggerBuild, cancelBuild, mirrorBuild, deleteBuild, fetchBuildLog } from '../hooks/useApi';
+import { Smartphone, Download, Loader2, Rocket, X, RefreshCw, QrCode, Copy, Trash2, ExternalLink, ChevronDown, ChevronUp, Terminal, Zap } from 'lucide-react';
+import { useBuilds, triggerBuild, cancelBuild, mirrorBuild, deleteBuild, fetchBuildLog, publishUpdate } from '../hooks/useApi';
 import type { EasBuild } from '../types';
 import StatusBadge from './StatusBadge';
 import { classForState } from '../lib/utils';
@@ -243,6 +243,7 @@ function ElapsedTimer({ startIso }: { startIso: string }) {
 export default function FitsoBuilds() {
   const { data: builds, loading, error, refresh } = useBuilds(10000);
   const [triggering, setTriggering] = useState<'preview' | 'development' | null>(null);
+  const [publishing, setPublishing] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
@@ -368,6 +369,20 @@ export default function FitsoBuilds() {
       setActionError(e instanceof Error ? e.message : 'Failed to start build');
     } finally {
       setTriggering(null);
+    }
+  };
+
+  const handlePublishUpdate = async () => {
+    setPublishing(true);
+    setActionError(null);
+    setSuccessMsg(null);
+    try {
+      const result = await publishUpdate('preview');
+      setSuccessMsg(`OTA update published to '${result.branch}' — restart the app on your device to fetch it.`);
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : 'Failed to publish update');
+    } finally {
+      setPublishing(false);
     }
   };
 
@@ -500,6 +515,36 @@ export default function FitsoBuilds() {
             )}
           </button>
         </div>
+      </div>
+
+      {/* OTA update publisher */}
+      <div className="card p-5 flex flex-row items-center justify-between gap-4">
+        <div className="flex-1">
+          <div className="flex items-center gap-2">
+            <Zap size={18} className="text-accent" />
+            <h3 className="font-semibold">OTA Update</h3>
+          </div>
+          <p className="mt-1 text-sm text-muted">
+            Push JS changes to installed preview builds instantly — no APK rebuild or reinstall.
+          </p>
+        </div>
+        <button
+          onClick={handlePublishUpdate}
+          disabled={publishing}
+          className="inline-flex items-center gap-2 rounded-full bg-ink px-5 py-2.5 text-sm font-medium text-white transition-transform hover:scale-105 active:scale-95 disabled:opacity-60 dark:bg-accent dark:text-ink"
+        >
+          {publishing ? (
+            <>
+              <Loader2 size={16} className="animate-spin" />
+              Publishing…
+            </>
+          ) : (
+            <>
+              <Zap size={16} />
+              Publish Update
+            </>
+          )}
+        </button>
       </div>
 
       {/* Active builds */}

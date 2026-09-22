@@ -111,6 +111,22 @@ export async function triggerBuild(
   return res.json();
 }
 
+export async function publishUpdate(
+  branch = 'preview',
+  message?: string
+): Promise<{ ok: boolean; branch: string; output?: string }> {
+  const res = await authFetch('/api/updates', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ branch, message }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || `${res.status} ${res.statusText}`);
+  }
+  return res.json();
+}
+
 export async function cancelBuild(buildId: string): Promise<{ ok: boolean; id: string }> {
   const res = await authFetch(`/api/builds/${buildId}/cancel`, { method: 'POST' });
   if (!res.ok) {

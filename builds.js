@@ -709,6 +709,45 @@ module.exports = function createBuildsRouter(io) {
   });
 
   /**
+   * POST /api/updates
+   * Publish an EAS Update (OTA) — bundles the current working tree at
+   * FITSO_MOBILE_DIR and pushes it to an update branch. Devices running a
+   * build subscribed to the matching channel fetch it on next app launch.
+   * Body: { branch?: string, message?: string }
+   */
+  router.post('/api/updates', (req, res) => {
+    if (!EAS_TOKEN) return res.status(500).json({ error: 'EXPO_TOKEN not configured' });
+    const { branch = 'preview', message } = req.body || {};
+    if (!/^[a-zA-Z0-9_-]+$/.test(branch)) {
+      return res.status(400).json({ error: 'Invalid branch name' });
+    }
+    if (!fs.existsSync(FITSO_MOBILE_DIR)) {
+      return res.status(500).json({ error: `FITSO_MOBILE_DIR does not exist: ${FITSO_MOBILE_DIR}` });
+    }
+
+    const args = [
+      'update',
+      '--branch', branch,
+      '--platform', 'android',
+      '--message', String(message || `OTA update ${new Date().toISOString()}`).slice(0, 240),
+      '--non-interactive',
+    ];
+
+    execFile('eas', args, {
+      cwd: FITSO_MOBILE_DIR,
+      env: { ...process.env, EXPO_TOKEN: EAS_TOKEN },
+      maxBuffer: 10 * 1024 * 1024,
+      timeout: 5 * 60 * 1000,
+    }, (err, stdout, stderr) => {
+      if (err) {
+        const detail = stderr?.trim() || stdout?.trim() || err.message;
+        return res.status(500).json({ error: `eas update failed: ${detail.slice(-2000)}` });
+      }
+      res.json({ ok: true, branch, output: stdout.trim().slice(-2000) });
+    });
+  });
+
+  /**
    * POST /api/builds/:id/cancel
    * Cancel a running build.
    */

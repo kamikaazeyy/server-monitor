@@ -647,7 +647,7 @@ export default function FitsoBuilds() {
                               {build.localApkAvailable ? (
                                 <>
                                   <a
-                                    href={`/api/builds/${build.id}/apk`}
+                                    href={`/api/builds/${build.id}/apk?token=${encodeURIComponent(getToken())}`}
                                     className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-3 py-1.5 text-xs font-medium text-emerald-700 transition-colors hover:bg-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300"
                                   >
                                     <Download size={14} />

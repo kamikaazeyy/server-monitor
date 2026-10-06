@@ -1,10 +1,19 @@
+# Example systemd unit for the monitoring dashboard.
+# Copy to /etc/systemd/system/monitoring-dashboard.service and adjust
+# User, WorkingDirectory and EnvironmentFile to your setup.
+#
+# The service user needs read access to /proc, plus membership in the
+# `docker` group if you want container data. Do NOT run as root — the
+# terminal module refuses to start under root unless TERMINAL_ALLOW_ROOT
+# is set.
 [Unit]
 Description=Monitoring Dashboard
-After=network.target
+After=network.target docker.service
+Wants=docker.service
 
 [Service]
 Type=simple
-User=kamikaazeyy
+User=monitor
 WorkingDirectory=/opt/monitoring-dashboard
 EnvironmentFile=/opt/monitoring-dashboard/.env
 ExecStart=/usr/bin/node index.js

@@ -240,7 +240,7 @@ function ElapsedTimer({ startIso }: { startIso: string }) {
   return <span className="text-xs text-muted">{formatElapsed(elapsed)}</span>;
 }
 
-export default function FitsoBuilds() {
+export default function EasBuilds() {
   const { data: builds, loading, error, refresh } = useBuilds(10000);
   const [triggering, setTriggering] = useState<'preview' | 'development' | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -428,7 +428,7 @@ export default function FitsoBuilds() {
           <Smartphone size={22} />
         </div>
         <div>
-          <h2 className="text-xl font-semibold">Fitso APK Builds</h2>
+          <h2 className="text-xl font-semibold">EAS Builds</h2>
           <p className="text-sm text-muted">Trigger EAS cloud builds, mirror APKs locally, and install over Tailscale.</p>
         </div>
       </div>

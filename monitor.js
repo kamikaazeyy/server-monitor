@@ -6,7 +6,7 @@ const { rateLimit } = require('./ratelimit');
 const { sendError, publicMessage } = require('./errors');
 
 const router = express.Router();
-const MONITOR_REPO = process.env.MONITOR_REPO || 'kamikaazeyy/fitso';
+const MONITOR_REPO = process.env.MONITOR_REPO || '';
 const CF_SPEED_URL = 'https://speed.cloudflare.com/__down?bytes=25000000';
 
 function humanBytes(bytes, decimals = 2) {
@@ -251,7 +251,11 @@ async function getServices() {
 }
 
 async function getGitHub() {
-  const result = { repo: MONITOR_REPO, pulls: [], runs: [], error: null };
+  const result = { repo: MONITOR_REPO || null, pulls: [], runs: [], error: null };
+  if (!MONITOR_REPO) {
+    result.error = 'MONITOR_REPO is not configured — set it to owner/repo to enable the GitHub tab';
+    return result;
+  }
   try {
     const [prOut, runOut] = await Promise.all([
       runCommand('gh', ['pr', 'list', '--repo', MONITOR_REPO, '--state', 'all', '--limit', '20', '--json', 'number,title,state,author,headRefName,baseRefName,mergeStateStatus,url,createdAt,statusCheckRollup']).catch(() => '[]'),

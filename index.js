@@ -48,9 +48,21 @@ app.post('/api/auth/signup', rateLimit({ windowMs: 3600000, max: 5, message: 'To
 app.post('/api/auth/login', rateLimit({ windowMs: 300000, max: 10, message: 'Too many login attempts. Try again later.' }), loginHandler);
 app.use('/api', requireAuth);
 
+// The EAS builds feature is opt-in: an explicit ENABLE_BUILDS wins,
+// otherwise it auto-enables when EXPO_TOKEN is configured.
+const ENABLE_BUILDS = process.env.ENABLE_BUILDS
+  ? process.env.ENABLE_BUILDS === 'true'
+  : !!process.env.EXPO_TOKEN;
+
 app.use(monitorRouter);
-app.use(createBuildsRouter(io));
+if (ENABLE_BUILDS) {
+  app.use(createBuildsRouter(io));
+}
 app.use(dbRouter);
+
+app.get('/api/features', (req, res) => {
+  res.json({ builds: ENABLE_BUILDS });
+});
 
 io.use(socketAuth);
 

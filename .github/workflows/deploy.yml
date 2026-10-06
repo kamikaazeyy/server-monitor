@@ -1,3 +1,6 @@
+# Maintainer's deploy pipeline — builds the client, bundles the app, and
+# ships it over Tailscale+SSH to the maintainer's own server. Forks should
+# replace the deploy job (or delete this file) with their own pipeline.
 name: Deploy Monitoring Dashboard
 
 on:

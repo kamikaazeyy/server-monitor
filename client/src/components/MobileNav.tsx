@@ -17,6 +17,7 @@ type Tab = 'overview' | 'containers' | 'projects' | 'services' | 'github' | 'bui
 interface MobileNavProps {
   active: Tab;
   onChange: (tab: Tab) => void;
+  showBuilds?: boolean;
 }
 
 const items: { id: Tab; icon: LucideIcon; label: string }[] = [
@@ -31,10 +32,11 @@ const items: { id: Tab; icon: LucideIcon; label: string }[] = [
   { id: 'database', icon: Database, label: 'Database' },
 ];
 
-export default function MobileNav({ active, onChange }: MobileNavProps) {
+export default function MobileNav({ active, onChange, showBuilds = true }: MobileNavProps) {
+  const visible = showBuilds ? items : items.filter((i) => i.id !== 'builds');
   return (
     <div className="flex gap-2 overflow-x-auto border-b border-black/5 bg-surface px-4 py-3 dark:border-white/10 dark:bg-surface-dark md:hidden">
-      {items.map((item) => {
+      {visible.map((item) => {
         const Icon = item.icon;
         const isActive = active === item.id;
         return (

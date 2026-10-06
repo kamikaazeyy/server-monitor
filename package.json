@@ -17,8 +17,15 @@
     "node-pty",
     "react"
   ],
-  "author": "",
-  "license": "ISC",
+  "author": "kamikaazeyy",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kamikaazeyy/server-monitor.git"
+  },
+  "engines": {
+    "node": ">=18"
+  },
   "dependencies": {
     "cors": "^2.8.5",
     "express": "^4.21.0",

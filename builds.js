@@ -9,7 +9,10 @@ const { sendError, publicMessage } = require('./errors');
 
 const BUILDS_DIR = process.env.BUILDS_DIR || '/opt/monitoring-builds';
 const BUILDS_KEEP = parseInt(process.env.BUILDS_KEEP || '10', 10);
-const FITSO_MOBILE_DIR = process.env.FITSO_MOBILE_DIR || '/home/kamikaazeyy/fitso/mobile';
+// Directory containing the mobile app to build (eas.json must live here).
+// EAS_PROJECT_DIR is the preferred name; FITSO_MOBILE_DIR is kept for
+// backwards compatibility.
+const EAS_PROJECT_DIR = process.env.EAS_PROJECT_DIR || process.env.FITSO_MOBILE_DIR || '';
 const EAS_TOKEN = process.env.EXPO_TOKEN;
 const LOG_BUFFER_CAP = 2000;
 const POLL_INTERVAL_MS = 30000;
@@ -108,7 +111,7 @@ function runEas(args, options = {}) {
   return new Promise((resolve, reject) => {
     const env = { ...process.env, EXPO_TOKEN: EAS_TOKEN };
     execFile('eas', args, {
-      cwd: FITSO_MOBILE_DIR,
+      cwd: EAS_PROJECT_DIR,
       env,
       maxBuffer: 10 * 1024 * 1024,
       ...options,
@@ -627,9 +630,9 @@ module.exports = function createBuildsRouter(io) {
       return res.status(400).json({ error: `Invalid profile. Must be one of: ${validProfiles.join(', ')}` });
     }
 
-    // Pre-flight: verify FITSO_MOBILE_DIR exists
-    if (!fs.existsSync(FITSO_MOBILE_DIR)) {
-      return res.status(500).json({ error: `FITSO_MOBILE_DIR does not exist: ${FITSO_MOBILE_DIR}` });
+    // Pre-flight: verify the project dir is configured and exists
+    if (!EAS_PROJECT_DIR || !fs.existsSync(EAS_PROJECT_DIR)) {
+      return res.status(500).json({ error: 'EAS_PROJECT_DIR is not configured or does not exist' });
     }
 
     const args = [
@@ -647,7 +650,7 @@ module.exports = function createBuildsRouter(io) {
     const env = { ...process.env, EXPO_TOKEN: EAS_TOKEN };
     let child;
     try {
-      child = spawn('eas', args, { cwd: FITSO_MOBILE_DIR, env });
+      child = spawn('eas', args, { cwd: EAS_PROJECT_DIR, env });
     } catch (err) {
       return res.status(500).json({ error: `Failed to spawn eas CLI: ${publicMessage(err)}. Is eas installed and in PATH?` });
     }

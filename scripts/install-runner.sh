@@ -1,7 +1,19 @@
 #!/bin/bash
+# Install a GitHub Actions self-hosted runner on a machine.
+#
+# WARNING: RUNNER_ALLOW_RUNASROOT=1 is used below so this works when run
+# as root (common on fresh VPS images). A self-hosted runner executes CI
+# jobs on this machine — on a PUBLIC repository that means anyone who can
+# trigger a workflow may get code execution here. Prefer a dedicated VM,
+# a non-root user, and never attach a self-hosted runner to a public repo
+# unless you understand the risk.
+#
+# Required env:
+#   REPO  — owner/repo to register the runner against
+#   TOKEN — registration token from GitHub (Settings > Actions > Runners)
 set -e
 
-REPO="${REPO:-kamikaazeyy/server-monitor}"
+REPO="${REPO:?REPO environment variable is required (owner/repo)}"
 TOKEN="${TOKEN:?TOKEN environment variable is required}"
 RUNNER_NAME="${RUNNER_NAME:-$(hostname)}"
 LABELS="${LABELS:-self-hosted,Linux,X64}"

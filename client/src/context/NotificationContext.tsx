@@ -7,8 +7,7 @@ import {
   useCallback,
   type ReactNode,
 } from 'react';
-import { io } from 'socket.io-client';
-import { getToken, handleSocketError } from '../lib/auth';
+import { connectSocket, getToken, handleSocketError } from '../lib/auth';
 
 export type NotificationType =
   | 'build'
@@ -142,13 +141,11 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   }, []);
 
   // --- Socket.io listener for build status changes ---
+  // Skipped on the auth screen — the provider mounts inside the authed
+  // tree, but double-check so a stray mount never causes a reload loop.
   useEffect(() => {
-    const socketUrl = import.meta.env.VITE_TERMINAL_URL || window.location.origin;
-    const socket = io(socketUrl, {
-      path: '/socket.io/',
-      transports: ['websocket', 'polling'],
-      auth: { token: getToken() },
-    });
+    if (!getToken()) return;
+    const socket = connectSocket();
 
     socket.on('connect_error', handleSocketError);
 

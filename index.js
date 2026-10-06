@@ -2,15 +2,17 @@ const express = require('express');
 const { createServer } = require('http');
 const { Server } = require('socket.io');
 const path = require('path');
+const fs = require('fs');
 const pty = require('node-pty');
 const cors = require('cors');
 const monitorRouter = require('./monitor');
-const createBuildsRouter = require('./builds');
 const dbRouter = require('./db');
-const { requireAuth, socketAuth, statusHandler, signupHandler, loginHandler } = require('./auth');
+const { requireAuth, socketAuth, statusHandler, signupHandler, loginHandler, logoutHandler } = require('./auth');
 const { rateLimit } = require('./ratelimit');
+const { sendError } = require('./errors');
 
 const app = express();
+app.disable('x-powered-by');
 
 // CORS is only needed when the client is served from a different origin
 // (e.g. the Vite dev server). In production the built client is same-origin.
@@ -46,6 +48,7 @@ const io = new Server(httpServer, CLIENT_ORIGIN ? {
 app.get('/api/auth/status', statusHandler);
 app.post('/api/auth/signup', rateLimit({ windowMs: 3600000, max: 5, message: 'Too many signup attempts' }), signupHandler);
 app.post('/api/auth/login', rateLimit({ windowMs: 300000, max: 10, message: 'Too many login attempts. Try again later.' }), loginHandler);
+app.post('/api/auth/logout', logoutHandler);
 app.use('/api', requireAuth);
 
 // The EAS builds feature is opt-in: an explicit ENABLE_BUILDS wins,
@@ -56,7 +59,7 @@ const ENABLE_BUILDS = process.env.ENABLE_BUILDS
 
 app.use(monitorRouter);
 if (ENABLE_BUILDS) {
-  app.use(createBuildsRouter(io));
+  app.use(require('./builds')(io));
 }
 app.use(dbRouter);
 
@@ -71,13 +74,25 @@ if (process.getuid && process.getuid() === 0 && !process.env.TERMINAL_ALLOW_ROOT
   process.exit(1);
 }
 
+// Only /terminal namespace connections spawn a shell — sockets opened by
+// notifications/build-log listeners on the default namespace never do.
+const terminalNsp = io.of('/terminal');
+terminalNsp.use(socketAuth);
+
 // Bound concurrent terminal sessions — each connection spawns a real shell.
 const TERMINAL_MAX_SESSIONS = parseInt(process.env.TERMINAL_MAX_SESSIONS || '10', 10);
 const TERMINAL_MAX_PER_IP = parseInt(process.env.TERMINAL_MAX_PER_IP || '3', 10);
 /** @type {Map<string, string>} socket.id -> remote address */
 const activeTerminals = new Map();
 
-io.on('connection', (socket) => {
+function pickShell() {
+  if (process.env.SHELL) return process.env.SHELL;
+  if (process.platform === 'win32') return 'cmd.exe';
+  if (fs.existsSync('/bin/bash')) return '/bin/bash';
+  return '/bin/sh';
+}
+
+terminalNsp.on('connection', (socket) => {
   const remoteIp = socket.handshake.address || 'unknown';
   let ipCount = 0;
   for (const ip of activeTerminals.values()) {
@@ -90,7 +105,7 @@ io.on('connection', (socket) => {
   }
   activeTerminals.set(socket.id, remoteIp);
 
-  const shell = process.env.SHELL || '/bin/bash';
+  const shell = pickShell();
 
   let ptyProcess;
   try {
@@ -153,6 +168,13 @@ app.use(express.static(DIST_DIR, { maxAge: '1d' }));
 
 app.get('/monitor', (req, res) => {
   res.sendFile(path.join(DIST_DIR, 'index.html'));
+});
+
+// Final error handler — keeps stack traces out of responses even when
+// NODE_ENV isn't 'production'.
+// eslint-disable-next-line no-unused-vars
+app.use((err, req, res, next) => {
+  sendError(res, 500, err);
 });
 
 const port = process.env.PORT || 3000;

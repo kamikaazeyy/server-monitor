@@ -15,6 +15,7 @@ const BUILDS_KEEP = parseInt(process.env.BUILDS_KEEP || '10', 10);
 const EAS_PROJECT_DIR = process.env.EAS_PROJECT_DIR || process.env.FITSO_MOBILE_DIR || '';
 const EAS_TOKEN = process.env.EXPO_TOKEN;
 const LOG_BUFFER_CAP = 2000;
+const BUILD_ID_RE = /^[a-zA-Z0-9-]+$/;
 const POLL_INTERVAL_MS = 30000;
 const POLL_MAX_ATTEMPTS = 60; // 30 minutes cap
 
@@ -167,6 +168,11 @@ function parseEasBuild(raw) {
   if (!build || typeof build !== 'object' || !build.id) {
     throw new Error('EAS returned an invalid build JSON response');
   }
+  // The build id is used in file paths — refuse anything that could
+  // traverse directories if the CLI output is ever compromised.
+  if (!BUILD_ID_RE.test(build.id)) {
+    throw new Error('EAS returned a malformed build id');
+  }
   return build;
 }
 
@@ -178,7 +184,9 @@ function emitLog(io, buildId, line, stream) {
 }
 
 function emitStatus(io, buildId, status, extra = {}) {
-  io.to(`build:${buildId}`).emit('build:status', { buildId, status, ...extra });
+  // Broadcast to every authed socket — notifications listen globally,
+  // not just from inside per-build rooms.
+  io.emit('build:status', { buildId, status, ...extra });
 }
 
 function emitProgress(io, buildId, received, total) {
@@ -194,7 +202,13 @@ function downloadArtifact(io, buildId, artifactUrl, redirectLimit = 10) {
 
     function start(url, redirects) {
       let file = null;
-      const proto = url.startsWith('https') ? https : http;
+      // Artifact downloads are HTTPS only — never follow a redirect to
+      // http:// or any other scheme/host family (SSRF hardening).
+      if (!url.startsWith('https://')) {
+        reject(new Error('Artifact download requires an https:// URL'));
+        return;
+      }
+      const proto = https;
 
       const req = proto.get(url, (response) => {
         if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {

@@ -39,6 +39,18 @@ async function readFileFirstLine(filePath) {
   }
 }
 
+// Aggregate os.cpus() times — fallback for hosts without /proc (macOS, BSD).
+function cpuTimesSnapshot() {
+  return os.cpus().reduce(
+    (acc, cpu) => {
+      acc.idle += cpu.times.idle;
+      acc.total += cpu.times.user + cpu.times.nice + cpu.times.sys + cpu.times.irq + cpu.times.idle;
+      return acc;
+    },
+    { idle: 0, total: 0 }
+  );
+}
+
 async function getCpuUsage() {
   try {
     const first = await readFileFirstLine('/proc/stat');
@@ -60,8 +72,19 @@ async function getCpuUsage() {
     const dIdle = b.idle - a.idle;
     const usage = dTotal > 0 ? 100 * (1 - dIdle / dTotal) : 0;
     return { usage: Math.max(0, Math.min(100, usage)), cores: os.cpus().length, load: os.loadavg() };
-  } catch (err) {
-    return { usage: 0, cores: os.cpus().length, load: os.loadavg(), error: publicMessage(err) };
+  } catch {
+    // Non-Linux fallback: diff os.cpus() aggregate times over the same window.
+    try {
+      const a = cpuTimesSnapshot();
+      await new Promise((r) => setTimeout(r, 500));
+      const b = cpuTimesSnapshot();
+      const dTotal = b.total - a.total;
+      const dIdle = b.idle - a.idle;
+      const usage = dTotal > 0 ? 100 * (1 - dIdle / dTotal) : 0;
+      return { usage: Math.max(0, Math.min(100, usage)), cores: os.cpus().length, load: os.loadavg() };
+    } catch (err) {
+      return { usage: 0, cores: os.cpus().length, load: os.loadavg(), error: publicMessage(err) };
+    }
   }
 }
 

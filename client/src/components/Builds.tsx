@@ -1,12 +1,11 @@
 import { useState, useEffect, useRef, useCallback, Fragment } from 'react';
-import { io } from 'socket.io-client';
 import { QRCodeSVG } from 'qrcode.react';
 import { Smartphone, Download, Loader2, Rocket, X, RefreshCw, QrCode, Copy, Trash2, ExternalLink, ChevronDown, ChevronUp, Terminal } from 'lucide-react';
 import { useBuilds, triggerBuild, cancelBuild, mirrorBuild, deleteBuild, fetchBuildLog } from '../hooks/useApi';
 import type { EasBuild } from '../types';
 import StatusBadge from './StatusBadge';
 import { classForState } from '../lib/utils';
-import { getToken, handleSocketError } from '../lib/auth';
+import { getToken, handleSocketError, connectSocket } from '../lib/auth';
 
 function timeAgo(iso: string): string {
   if (!iso) return '—';
@@ -70,12 +69,7 @@ function BuildLogConsole({ buildId }: { buildId: string }) {
       setLines(parsed);
     });
 
-    const socketUrl = import.meta.env.VITE_TERMINAL_URL || window.location.origin;
-    const socket = io(socketUrl, {
-      path: '/socket.io/',
-      transports: ['websocket', 'polling'],
-      auth: { token: getToken() },
-    });
+    const socket = connectSocket();
 
     socket.on('connect_error', handleSocketError);
 
@@ -253,7 +247,7 @@ export default function EasBuilds() {
   const [progressMap, setProgressMap] = useState<Record<string, { received: number; total: number }>>({});
   const [liveBuilds, setLiveBuilds] = useState<Record<string, { status: string; sizeBytes?: number }>>({});
   const [pendingBuilds, setPendingBuilds] = useState<EasBuild[]>([]);
-  const buildSocketRef = useRef<ReturnType<typeof io> | null>(null);
+  const buildSocketRef = useRef<ReturnType<typeof connectSocket> | null>(null);
 
   // Listen for optimistic build additions
   useEffect(() => {
@@ -284,12 +278,7 @@ export default function EasBuilds() {
 
   // Socket.io for build:progress events (global, not per-build)
   useEffect(() => {
-    const socketUrl = import.meta.env.VITE_TERMINAL_URL || window.location.origin;
-    const socket = io(socketUrl, {
-      path: '/socket.io/',
-      transports: ['websocket', 'polling'],
-      auth: { token: getToken() },
-    });
+    const socket = connectSocket();
     buildSocketRef.current = socket;
 
     socket.on('connect_error', handleSocketError);

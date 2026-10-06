@@ -12,6 +12,7 @@ import TerminalWidget from './components/TerminalWidget';
 import EasBuilds from './components/Builds';
 import Database from './components/Database';
 import AuthScreen from './components/AuthScreen';
+import { NotificationProvider } from './context/NotificationContext';
 import { getToken, authFetch } from './lib/auth';
 
 type Tab = 'overview' | 'containers' | 'projects' | 'services' | 'github' | 'builds' | 'speed' | 'terminal' | 'database';
@@ -67,17 +68,21 @@ function App() {
     return <AuthScreen needsSetup={authState === 'setup'} onSuccess={() => setAuthState('authed')} />;
   }
 
+  // NotificationProvider lives inside the authed tree so its socket only
+  // connects once a token exists — otherwise it would auth-fail and loop.
   return (
-    <div className="flex h-screen overflow-hidden bg-bg dark:bg-bg-dark">
-      <Sidebar active={activeTab} onChange={setActiveTab} showBuilds={showBuilds} />
-      <div className="flex min-w-0 flex-1 flex-col">
-        <Header />
-        <MobileNav active={activeTab} onChange={setActiveTab} showBuilds={showBuilds} />
-        <main className="flex-1 overflow-y-auto">
-          <View tab={activeTab} setTab={setTab} showBuilds={showBuilds} />
-        </main>
+    <NotificationProvider>
+      <div className="flex h-screen overflow-hidden bg-bg dark:bg-bg-dark">
+        <Sidebar active={activeTab} onChange={setActiveTab} showBuilds={showBuilds} />
+        <div className="flex min-w-0 flex-1 flex-col">
+          <Header />
+          <MobileNav active={activeTab} onChange={setActiveTab} showBuilds={showBuilds} />
+          <main className="flex-1 overflow-y-auto">
+            <View tab={activeTab} setTab={setTab} showBuilds={showBuilds} />
+          </main>
+        </div>
       </div>
-    </div>
+    </NotificationProvider>
   );
 }
 

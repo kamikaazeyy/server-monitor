@@ -18,9 +18,15 @@ export default function AuthScreen({
     e.preventDefault();
     const name = username.trim();
     if (!name || !password) return;
-    if (needsSetup && password !== confirm) {
-      setError('Passwords do not match');
-      return;
+    if (needsSetup) {
+      if (password.length < 12) {
+        setError('Password must be at least 12 characters');
+        return;
+      }
+      if (password !== confirm) {
+        setError('Passwords do not match');
+        return;
+      }
     }
     setLoading(true);
     setError(null);
@@ -68,7 +74,7 @@ export default function AuthScreen({
           type="password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          placeholder={needsSetup ? 'Password (min 8 chars)' : 'Password'}
+          placeholder={needsSetup ? 'Password (min 12 chars)' : 'Password'}
           autoComplete={needsSetup ? 'new-password' : 'current-password'}
           className="mb-3 w-full rounded-lg border border-black/10 bg-transparent px-3 py-2 text-sm text-gray-900 outline-none focus:border-blue-500 dark:border-white/15 dark:text-gray-100"
         />

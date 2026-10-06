@@ -4,6 +4,7 @@ const fs = require('fs');
 const https = require('https');
 const http = require('http');
 const express = require('express');
+const { rateLimit } = require('./ratelimit');
 
 const BUILDS_DIR = process.env.BUILDS_DIR || '/opt/monitoring-builds';
 const BUILDS_KEEP = parseInt(process.env.BUILDS_KEEP || '10', 10);
@@ -544,7 +545,7 @@ module.exports = function createBuildsRouter(io) {
    * POST /api/builds/:id/mirror
    * Manually (re-)download an already-finished EAS build's artifact.
    */
-  router.post('/api/builds/:id/mirror', async (req, res) => {
+  router.post('/api/builds/:id/mirror', rateLimit({ windowMs: 60000, max: 5, message: 'Mirror is limited to 5 requests per minute' }), async (req, res) => {
     if (!EAS_TOKEN) return res.status(500).json({ error: 'EXPO_TOKEN not configured' });
     const { id } = req.params;
     if (!id || !/^[a-zA-Z0-9-]+$/.test(id)) {
@@ -616,7 +617,7 @@ module.exports = function createBuildsRouter(io) {
    * Trigger a new EAS build using spawn for live stdout/stderr capture.
    * Body: { profile: 'preview' | 'development', message?: string }
    */
-  router.post('/api/builds', (req, res) => {
+  router.post('/api/builds', rateLimit({ windowMs: 3600000, max: 10, message: 'Build trigger is limited to 10 per hour' }), (req, res) => {
     if (!EAS_TOKEN) return res.status(500).json({ error: 'EXPO_TOKEN not configured' });
     const { profile, message } = req.body || {};
     const validProfiles = ['preview', 'development'];

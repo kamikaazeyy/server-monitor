@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { Search, Bell, Sun, Moon } from 'lucide-react';
+import { Search, Bell, Sun, Moon, LogOut } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import { useNotifications } from '../context/NotificationContext';
+import { logout } from '../lib/auth';
 import NotificationPanel from './NotificationPanel';
 
 export default function Header() {
@@ -45,6 +46,14 @@ export default function Header() {
           aria-label="Toggle theme"
         >
           {dark ? <Sun size={18} /> : <Moon size={18} />}
+        </button>
+        <button
+          onClick={logout}
+          className="flex h-10 w-10 items-center justify-center rounded-full bg-white shadow-sm transition-colors dark:bg-surface-dark"
+          aria-label="Sign out"
+          title="Sign out"
+        >
+          <LogOut size={18} className="text-muted" />
         </button>
         <div className="hidden h-10 w-10 overflow-hidden rounded-full bg-accent md:block">
           <img

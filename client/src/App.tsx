@@ -43,7 +43,7 @@ function App() {
     fetch('/api/auth/status')
       .then((res) => res.json())
       .then((status) => {
-        setAuthState(status.needsSetup ? 'setup' : getToken() ? 'authed' : 'login');
+        setAuthState(status.authDisabled ? 'authed' : status.needsSetup ? 'setup' : getToken() ? 'authed' : 'login');
       })
       .catch(() => setAuthState(getToken() ? 'authed' : 'login'));
   }, []);

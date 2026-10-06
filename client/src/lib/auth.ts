@@ -29,3 +29,8 @@ export async function authFetch(input: string, init: RequestInit = {}): Promise<
 export function handleSocketError(err: Error) {
   if (err.message === 'Unauthorized') forceReauth();
 }
+
+export function logout() {
+  clearToken();
+  window.location.reload();
+}

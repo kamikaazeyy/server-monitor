@@ -8,25 +8,26 @@ const monitorRouter = require('./monitor');
 const createBuildsRouter = require('./builds');
 const dbRouter = require('./db');
 const { requireAuth, socketAuth, statusHandler, signupHandler, loginHandler } = require('./auth');
+const { rateLimit } = require('./ratelimit');
 
 const app = express();
-app.use(cors({
-  origin: process.env.CLIENT_ORIGIN || '*',
-  credentials: true,
-}));
+
+// CORS is only needed when the client is served from a different origin
+// (e.g. the Vite dev server). In production the built client is same-origin.
+const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN;
+if (CLIENT_ORIGIN) {
+  app.use(cors({ origin: CLIENT_ORIGIN }));
+}
 app.use(express.json());
 
 const httpServer = createServer(app);
-const io = new Server(httpServer, {
-  cors: {
-    origin: process.env.CLIENT_ORIGIN || '*',
-    credentials: true,
-  },
-});
+const io = new Server(httpServer, CLIENT_ORIGIN ? {
+  cors: { origin: CLIENT_ORIGIN },
+} : {});
 
 app.get('/api/auth/status', statusHandler);
-app.post('/api/auth/signup', signupHandler);
-app.post('/api/auth/login', loginHandler);
+app.post('/api/auth/signup', rateLimit({ windowMs: 3600000, max: 5, message: 'Too many signup attempts' }), signupHandler);
+app.post('/api/auth/login', rateLimit({ windowMs: 300000, max: 10, message: 'Too many login attempts. Try again later.' }), loginHandler);
 app.use('/api', requireAuth);
 
 app.use(monitorRouter);
@@ -40,7 +41,25 @@ if (process.getuid && process.getuid() === 0 && !process.env.TERMINAL_ALLOW_ROOT
   process.exit(1);
 }
 
+// Bound concurrent terminal sessions — each connection spawns a real shell.
+const TERMINAL_MAX_SESSIONS = parseInt(process.env.TERMINAL_MAX_SESSIONS || '10', 10);
+const TERMINAL_MAX_PER_IP = parseInt(process.env.TERMINAL_MAX_PER_IP || '3', 10);
+/** @type {Map<string, string>} socket.id -> remote address */
+const activeTerminals = new Map();
+
 io.on('connection', (socket) => {
+  const remoteIp = socket.handshake.address || 'unknown';
+  let ipCount = 0;
+  for (const ip of activeTerminals.values()) {
+    if (ip === remoteIp) ipCount++;
+  }
+  if (activeTerminals.size >= TERMINAL_MAX_SESSIONS || ipCount >= TERMINAL_MAX_PER_IP) {
+    socket.emit('terminal:data', '\r\n[terminal] Too many active terminal sessions. Close one and retry.\r\n');
+    socket.disconnect(true);
+    return;
+  }
+  activeTerminals.set(socket.id, remoteIp);
+
   const shell = process.env.SHELL || '/bin/bash';
 
   let ptyProcess;
@@ -77,13 +96,16 @@ io.on('connection', (socket) => {
     ptyProcess.write(data);
   });
 
-  socket.on('terminal:resize', ({ cols, rows }) => {
-    if (cols > 0 && rows > 0) {
+  socket.on('terminal:resize', (data) => {
+    const cols = Number(data?.cols);
+    const rows = Number(data?.rows);
+    if (Number.isInteger(cols) && Number.isInteger(rows) && cols > 0 && cols <= 500 && rows > 0 && rows <= 500) {
       ptyProcess.resize(cols, rows);
     }
   });
 
   socket.on('disconnect', () => {
+    activeTerminals.delete(socket.id);
     try {
       ptyProcess.kill();
     } catch (err) {
@@ -104,7 +126,7 @@ app.get('/monitor', (req, res) => {
 });
 
 const port = process.env.PORT || 3000;
-const host = process.env.HOST || '0.0.0.0';
+const host = process.env.HOST || '127.0.0.1';
 
 httpServer.listen(port, host, () => {
   console.log(`Server Monitor running on http://${host}:${port}/monitor`);

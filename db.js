@@ -11,6 +11,7 @@ const DB_POOL_MAX = parseInt(process.env.DB_POOL_MAX || '5', 10);
 const DB_POOL_IDLE_TIMEOUT = parseInt(process.env.DB_POOL_IDLE_TIMEOUT || '600000', 10); // 10 min
 const MAX_PAGE_SIZE = 500;
 const STATEMENT_TIMEOUT_MS = 10000;
+const MAX_POOLS = 20; // bound on distinct (containerId, dbName) pools held at once
 
 // ---------------------------------------------------------------------------
 // Validation helpers
@@ -244,6 +245,18 @@ class ConnectionManager {
     const key = this._key(containerId, dbName);
     let entry = this.entries.get(key);
     if (!entry) {
+      if (this.entries.size >= MAX_POOLS) {
+        // Evict the least-recently-used pool
+        let lruKey = null;
+        let lruTime = Infinity;
+        for (const [k, v] of this.entries) {
+          if (v.lastUsed < lruTime) { lruTime = v.lastUsed; lruKey = k; }
+        }
+        if (lruKey) {
+          this.entries.get(lruKey).pool.end().catch(() => {});
+          this.entries.delete(lruKey);
+        }
+      }
       const pool = new Pool(poolConfig);
       entry = { pool, lastUsed: Date.now() };
       this.entries.set(key, entry);

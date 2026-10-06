@@ -10,6 +10,11 @@ const AUTH_FILE = process.env.AUTH_FILE || path.join(__dirname, '.auth.json');
 const TOKEN_TTL = '30d';
 const SCRYPT_KEYLEN = 64;
 const USERNAME_RE = /^[a-zA-Z0-9_.-]{3,32}$/;
+const AUTH_DISABLED = process.env.MONITOR_AUTH_DISABLED === 'true';
+
+if (AUTH_DISABLED) {
+  console.warn('[auth] WARNING: MONITOR_AUTH_DISABLED=true — all endpoints and the terminal are UNAUTHENTICATED. Only use this behind external auth (Cloudflare Access, VPN, etc.).');
+}
 
 function loadCreds() {
   try {
@@ -53,10 +58,11 @@ function extractToken(req) {
 
 function statusHandler(req, res) {
   const creds = loadCreds();
-  res.json({ needsSetup: !creds, username: creds ? creds.username : null });
+  res.json({ needsSetup: !creds, username: creds ? creds.username : null, authDisabled: AUTH_DISABLED });
 }
 
 function signupHandler(req, res) {
+  if (AUTH_DISABLED) return res.status(400).json({ error: 'Auth is disabled on this server' });
   const { username, password } = req.body || {};
   const name = typeof username === 'string' ? username.trim() : '';
   if (!USERNAME_RE.test(name)) {
@@ -89,6 +95,7 @@ function signupHandler(req, res) {
 }
 
 async function loginHandler(req, res) {
+  if (AUTH_DISABLED) return res.status(400).json({ error: 'Auth is disabled on this server' });
   const creds = loadCreds();
   if (!creds) {
     return res.status(400).json({ error: 'No account yet — complete setup first' });
@@ -105,6 +112,10 @@ async function loginHandler(req, res) {
 }
 
 function requireAuth(req, res, next) {
+  if (AUTH_DISABLED) {
+    req.user = 'external';
+    return next();
+  }
   const payload = verifyToken(extractToken(req));
   if (payload) {
     req.user = payload.sub;
@@ -114,6 +125,7 @@ function requireAuth(req, res, next) {
 }
 
 function socketAuth(socket, next) {
+  if (AUTH_DISABLED) return next();
   const payload = verifyToken(socket.handshake.auth && socket.handshake.auth.token);
   if (payload) return next();
   next(new Error('Unauthorized'));

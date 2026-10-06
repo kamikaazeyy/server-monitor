@@ -2,6 +2,7 @@ const { execFile } = require('child_process');
 const fs = require('fs/promises');
 const os = require('os');
 const express = require('express');
+const { rateLimit } = require('./ratelimit');
 
 const router = express.Router();
 const MONITOR_REPO = process.env.MONITOR_REPO || 'kamikaazeyy/fitso';
@@ -429,7 +430,7 @@ router.get('/api/monitor/github', async (req, res) => {
   }
 });
 
-router.post('/api/monitor/speedtest', async (req, res) => {
+router.post('/api/monitor/speedtest', rateLimit({ windowMs: 60000, max: 3, message: 'Speed test is limited to 3 runs per minute' }), async (req, res) => {
   try {
     res.json(await runSpeedTest());
   } catch (err) {
@@ -437,11 +438,9 @@ router.post('/api/monitor/speedtest', async (req, res) => {
   }
 });
 
-// SECURITY: container lifecycle endpoints must be protected by authentication
-// middleware before deployment. Do not expose these without authorization.
-router.post('/api/monitor/containers/action', async (req, res) => {
+router.post('/api/monitor/containers/action', rateLimit({ windowMs: 60000, max: 20 }), async (req, res) => {
   const { name, action } = req.body || {};
-  if (!name || !['start', 'stop', 'restart'].includes(action)) {
+  if (typeof name !== 'string' || !/^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$/.test(name) || !['start', 'stop', 'restart'].includes(action)) {
     return res.status(400).json({ error: 'Invalid container name or action' });
   }
   try {

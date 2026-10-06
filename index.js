@@ -20,6 +20,24 @@ if (CLIENT_ORIGIN) {
 }
 app.use(express.json());
 
+// Baseline security headers. CSP allows the fonts/avatar origins used by the
+// client plus same-origin WebSocket connections for the terminal and builds.
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Referrer-Policy', 'no-referrer');
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  res.setHeader('Content-Security-Policy', [
+    "default-src 'self'",
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+    "font-src 'self' https://fonts.gstatic.com",
+    "img-src 'self' data: https://api.dicebear.com",
+    "connect-src 'self' ws: wss:",
+    "frame-ancestors 'none'",
+  ].join('; '));
+  next();
+});
+
 const httpServer = createServer(app);
 const io = new Server(httpServer, CLIENT_ORIGIN ? {
   cors: { origin: CLIENT_ORIGIN },

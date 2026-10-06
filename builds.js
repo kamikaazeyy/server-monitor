@@ -5,6 +5,7 @@ const https = require('https');
 const http = require('http');
 const express = require('express');
 const { rateLimit } = require('./ratelimit');
+const { sendError, publicMessage } = require('./errors');
 
 const BUILDS_DIR = process.env.BUILDS_DIR || '/opt/monitoring-builds';
 const BUILDS_KEEP = parseInt(process.env.BUILDS_KEEP || '10', 10);
@@ -75,8 +76,9 @@ function updateIndexEntry(buildId, updates) {
 
 function maskSecrets(line) {
   return line
-    .replace(/EXPO_TOKEN[=:]\s*\S+/gi, 'EXPO_TOKEN=***')
-    .replace(/Bearer\s+[A-Za-z0-9\-._~+/]+=*/gi, 'Bearer ***');
+    .replace(/([A-Z][A-Z0-9_]{2,}_(?:TOKEN|PASSWORD|SECRET|API_KEY|ACCESS_KEY|PRIVATE_KEY))[=:]\s*\S+/gi, '$1=***')
+    .replace(/Bearer\s+[A-Za-z0-9\-._~+/]+=*/gi, 'Bearer ***')
+    .replace(/([?&](?:token|jwt|signature|sig|key|password)=)[^&\s]+/gi, '$1***');
 }
 
 function appendLog(buildId, line, stream) {
@@ -313,7 +315,7 @@ function pollBuildStatus(io, buildId) {
             const size = await downloadArtifact(io, buildId, artifactUrl);
             emitLog(io, buildId, `Artifact downloaded successfully (${size} bytes)`, 'stdout');
           } catch (err) {
-            emitLog(io, buildId, `Download failed: ${err.message}`, 'stderr');
+            emitLog(io, buildId, `Download failed: ${publicMessage(err)}`, 'stderr');
             updateIndexEntry(buildId, { status: 'mirror_failed' });
             emitStatus(io, buildId, 'mirror_failed');
           }
@@ -340,7 +342,7 @@ function pollBuildStatus(io, buildId) {
 
       setTimeout(poll, POLL_INTERVAL_MS);
     } catch (err) {
-      emitLog(io, buildId, `Poll error: ${err.message}`, 'stderr');
+      emitLog(io, buildId, `Poll error: ${publicMessage(err)}`, 'stderr');
       setTimeout(poll, POLL_INTERVAL_MS);
     }
   };
@@ -500,7 +502,7 @@ module.exports = function createBuildsRouter(io) {
       const localEntry = readIndex().find(e => e.easBuildId === id);
       res.json(mapEasBuild(b, localEntry));
     } catch (err) {
-      res.status(500).json({ error: err.message });
+      sendError(res, 500, err);
     }
   });
 
@@ -581,13 +583,13 @@ module.exports = function createBuildsRouter(io) {
       downloadArtifact(io, id, artifactUrl)
         .then(size => emitLog(io, id, `Mirror complete (${size} bytes)`, 'stdout'))
         .catch(err => {
-          emitLog(io, id, `Mirror failed: ${err.message}`, 'stderr');
+          emitLog(io, id, `Mirror failed: ${publicMessage(err)}`, 'stderr');
           updateIndexEntry(id, { status: 'mirror_failed' });
         });
 
       res.json({ ok: true, id, message: 'Mirroring started' });
     } catch (err) {
-      res.status(500).json({ error: err.message });
+      sendError(res, 500, err);
     }
   });
 
@@ -647,7 +649,7 @@ module.exports = function createBuildsRouter(io) {
     try {
       child = spawn('eas', args, { cwd: FITSO_MOBILE_DIR, env });
     } catch (err) {
-      return res.status(500).json({ error: `Failed to spawn eas CLI: ${err.message}. Is eas installed and in PATH?` });
+      return res.status(500).json({ error: `Failed to spawn eas CLI: ${publicMessage(err)}. Is eas installed and in PATH?` });
     }
 
     let stdout = '';
@@ -665,7 +667,7 @@ module.exports = function createBuildsRouter(io) {
 
     child.on('error', (err) => {
       if (!res.headersSent) {
-        res.status(500).json({ error: `Failed to spawn eas: ${err.message}` });
+        res.status(500).json({ error: `Failed to spawn eas: ${publicMessage(err)}` });
       }
     });
 
@@ -673,7 +675,7 @@ module.exports = function createBuildsRouter(io) {
       if (code !== 0 && !stdout.trim()) {
         const errMsg = pendingLogs.join('\n') || `eas build exited with code ${code}`;
         if (!res.headersSent) {
-          res.status(500).json({ error: errMsg });
+          res.status(500).json({ error: publicMessage(errMsg) });
         }
         return;
       }
@@ -683,7 +685,7 @@ module.exports = function createBuildsRouter(io) {
         build = parseEasBuild(stdout);
       } catch (err) {
         if (!res.headersSent) {
-          res.status(500).json({ error: `Failed to parse EAS build output: ${err.message}` });
+          res.status(500).json({ error: `Failed to parse EAS build output: ${publicMessage(err)}` });
         }
         return;
       }
@@ -725,7 +727,7 @@ module.exports = function createBuildsRouter(io) {
       emitStatus(io, id, 'canceled');
       res.json({ ok: true, id, message: 'Build cancelled' });
     } catch (err) {
-      res.status(500).json({ error: err.message });
+      sendError(res, 500, err);
     }
   });
 

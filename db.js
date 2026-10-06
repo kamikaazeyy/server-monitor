@@ -1,6 +1,7 @@
 const { execFile } = require('child_process');
 const express = require('express');
 const { Pool } = require('pg');
+const { sendError, publicMessage } = require('./errors');
 
 // ---------------------------------------------------------------------------
 // Configuration
@@ -70,6 +71,8 @@ class PostgresAdapter extends BaseAdapter {
       max: DB_POOL_MAX,
       idleTimeoutMillis: DB_POOL_IDLE_TIMEOUT,
       statement_timeout: STATEMENT_TIMEOUT_MS,
+      // Enforce read-only at the session level — not just by convention.
+      options: DB_READONLY ? '-c default_transaction_read_only=on' : undefined,
     });
   }
 
@@ -450,7 +453,7 @@ async function discoverDatabases() {
         }
       } catch (err) {
         // inspect failed — use defaults, mark as needing manual config
-        connInfo.error = 'Could not inspect container: ' + err.message;
+        connInfo.error = 'Could not inspect container: ' + publicMessage(err);
       }
 
       results.push(connInfo);
@@ -488,13 +491,13 @@ router.get('/api/db', async (req, res) => {
           await adapter.testConnection();
           return { ...c, status: 'connected', password: undefined };
         } catch (err) {
-          return { ...c, status: 'disconnected', error: err.message, password: undefined };
+          return { ...c, status: 'disconnected', error: publicMessage(err), password: undefined };
         }
       })
     );
     res.json(enriched);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    sendError(res, 500, err);
   }
 });
 
@@ -516,7 +519,7 @@ router.get('/api/db/:containerId/databases', async (req, res) => {
     const databases = await adapter.listDatabases();
     res.json(databases);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    sendError(res, 500, err);
   }
 });
 
@@ -538,7 +541,7 @@ router.get('/api/db/:containerId/:dbName/tables', async (req, res) => {
     const tables = await adapter.listTables(dbName);
     res.json(tables);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    sendError(res, 500, err);
   }
 });
 
@@ -561,7 +564,7 @@ router.get('/api/db/:containerId/:dbName/:table/schema', async (req, res) => {
     const schema = await adapter.getSchema(dbName, table);
     res.json(schema);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    sendError(res, 500, err);
   }
 });
 
@@ -594,7 +597,7 @@ router.get('/api/db/:containerId/:dbName/:table/data', async (req, res) => {
 
     res.json({ ...dataResult, totalRows });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    sendError(res, 500, err);
   }
 });
 
@@ -617,7 +620,7 @@ router.get('/api/db/:containerId/:dbName/:table/count', async (req, res) => {
     const count = await adapter.countRows(dbName, table);
     res.json({ count });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    sendError(res, 500, err);
   }
 });
 

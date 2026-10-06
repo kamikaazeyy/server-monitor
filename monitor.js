@@ -3,6 +3,7 @@ const fs = require('fs/promises');
 const os = require('os');
 const express = require('express');
 const { rateLimit } = require('./ratelimit');
+const { sendError, publicMessage } = require('./errors');
 
 const router = express.Router();
 const MONITOR_REPO = process.env.MONITOR_REPO || 'kamikaazeyy/fitso';
@@ -60,7 +61,7 @@ async function getCpuUsage() {
     const usage = dTotal > 0 ? 100 * (1 - dIdle / dTotal) : 0;
     return { usage: Math.max(0, Math.min(100, usage)), cores: os.cpus().length, load: os.loadavg() };
   } catch (err) {
-    return { usage: 0, cores: os.cpus().length, load: os.loadavg(), error: err.message };
+    return { usage: 0, cores: os.cpus().length, load: os.loadavg(), error: publicMessage(err) };
   }
 }
 
@@ -110,7 +111,7 @@ async function getDisk() {
       availableHuman: humanBytes(available)
     };
   } catch (err) {
-    return { error: err.message };
+    return { error: publicMessage(err) };
   }
 }
 
@@ -219,7 +220,7 @@ async function getContainers() {
       };
     });
   } catch (err) {
-    return { error: err.message };
+    return { error: publicMessage(err) };
   }
 }
 
@@ -245,7 +246,7 @@ async function getServices() {
       description: u.description
     }));
   } catch (err) {
-    return { error: err.message };
+    return { error: publicMessage(err) };
   }
 }
 
@@ -278,7 +279,7 @@ async function getGitHub() {
       updatedAt: run.createdAt
     }));
   } catch (err) {
-    result.error = err.message;
+    result.error = publicMessage(err);
   }
   return result;
 }
@@ -298,7 +299,7 @@ async function runSpeedTest() {
       source: 'Cloudflare speed test'
     };
   } catch (err) {
-    return { error: err.message };
+    return { error: publicMessage(err) };
   }
 }
 
@@ -310,7 +311,7 @@ async function refreshSnapshots() {
   try {
     cpuSnapshot = await getCpuUsage();
   } catch (e) {
-    cpuSnapshot.error = e.message;
+    cpuSnapshot.error = publicMessage(e);
   }
 
   let memoryPercent = 0;
@@ -372,7 +373,7 @@ router.get('/api/monitor/overview', async (req, res) => {
     const [memory, disk] = await Promise.all([getMemory(), getDisk()]);
     res.json({ cpu: cpuSnapshot, memory, disk, uptime: os.uptime() });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    sendError(res, 500, err);
   }
 });
 
@@ -395,30 +396,30 @@ router.get('/api/monitor/history', (req, res) => {
 router.get('/api/monitor/containers', async (req, res) => {
   try {
     const data = await getContainers();
-    if (data.error) return res.status(500).json({ error: data.error });
+    if (data.error) return sendError(res, 500, data.error);
     res.json(data);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    sendError(res, 500, err);
   }
 });
 
 router.get('/api/monitor/projects', async (req, res) => {
   try {
     const containers = await getContainers();
-    if (containers.error) return res.status(500).json({ error: containers.error });
+    if (containers.error) return sendError(res, 500, containers.error);
     res.json(groupByProject(containers));
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    sendError(res, 500, err);
   }
 });
 
 router.get('/api/monitor/services', async (req, res) => {
   try {
     const data = await getServices();
-    if (data.error) return res.status(500).json({ error: data.error });
+    if (data.error) return sendError(res, 500, data.error);
     res.json(data);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    sendError(res, 500, err);
   }
 });
 
@@ -426,7 +427,7 @@ router.get('/api/monitor/github', async (req, res) => {
   try {
     res.json(await getGitHub());
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    sendError(res, 500, err);
   }
 });
 
@@ -434,7 +435,7 @@ router.post('/api/monitor/speedtest', rateLimit({ windowMs: 60000, max: 3, messa
   try {
     res.json(await runSpeedTest());
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    sendError(res, 500, err);
   }
 });
 
@@ -447,7 +448,7 @@ router.post('/api/monitor/containers/action', rateLimit({ windowMs: 60000, max: 
     await runCommand('docker', [action, name]);
     res.json({ ok: true, name, action });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    sendError(res, 500, err);
   }
 });
 

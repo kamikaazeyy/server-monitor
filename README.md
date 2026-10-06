@@ -17,6 +17,23 @@ A lightweight, self-hosted server monitoring dashboard built with **Express**, *
 
 ## Quick start
 
+On a Linux server, the installer does everything (deps, client build,
+service user + docker group, `.env`, systemd unit):
+
+```bash
+git clone https://github.com/kamikaazeyy/server-monitor.git /opt/monitoring-dashboard
+cd /opt/monitoring-dashboard
+sudo bash scripts/setup.sh
+```
+
+Non-interactive for scripts/agents (see `AGENTS.md`):
+
+```bash
+sudo bash scripts/setup.sh --non-interactive --user monitor --port 3000
+```
+
+Or run it manually:
+
 ```bash
 npm install
 npm run build   # builds client/

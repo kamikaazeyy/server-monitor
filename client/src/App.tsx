@@ -38,7 +38,9 @@ type AuthState = 'loading' | 'setup' | 'login' | 'authed';
 function App() {
   const [activeTab, setActiveTab] = useState<Tab>('overview');
   const [authState, setAuthState] = useState<AuthState>('loading');
-  const [showBuilds, setShowBuilds] = useState(true);
+  // Default false so EasBuilds doesn't mount + poll /api/builds before
+  // /api/features resolves — the race logged a 404 on every page load.
+  const [showBuilds, setShowBuilds] = useState(false);
   const setTab = (tab: string) => setActiveTab(tab as Tab);
 
   useEffect(() => {
@@ -55,7 +57,7 @@ function App() {
     authFetch('/api/features')
       .then((res) => (res.ok ? res.json() : null))
       .then((f) => {
-        if (f && f.builds === false) setShowBuilds(false);
+        if (f) setShowBuilds(f.builds === true);
       })
       .catch(() => {});
   }, [authState]);

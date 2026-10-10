@@ -1,9 +1,31 @@
+# Dependencies + build output
 node_modules
-.env
-.auth.json
-*.log
-client/dist
 client/node_modules
+client/dist
 dist
 builds/
+
+# Environment / credentials — only the example template is committed
+.env
+.env.*
+!.env.example
+.auth.json
+.envstore.json
+.envstore.key
+
+# Logs, caches, test + coverage output
+*.log
+coverage/
+.nyc_output/
+*.tsbuildinfo
+.npm/
+
+# OS artifacts
+.DS_Store
+Thumbs.db
+
+# Installer-generated Windows runner
+scripts/run-windows.ps1
+
+# Local context files
 IMPLEMENTATION_CONTEXT.md

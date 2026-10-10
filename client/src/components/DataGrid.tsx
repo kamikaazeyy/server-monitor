@@ -137,10 +137,11 @@ export default function DataGrid({ containerId, dbName, tableName }: DataGridPro
                 {columns.map((col) => {
                   const value = row[col.name];
                   return (
-                    <td key={col.name} className="px-4 py-2">
+                    <td key={col.name} className="max-w-[280px] px-4 py-2">
                       <span
+                        title={formatCell(value)}
                         className={cn(
-                          'font-mono text-xs',
+                          'block truncate font-mono text-xs',
                           isNull(value) && 'text-muted italic',
                           typeof value === 'number' && 'text-blue-600 dark:text-blue-400',
                           typeof value === 'boolean' && 'text-purple-600 dark:text-purple-400'

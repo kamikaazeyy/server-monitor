@@ -4,9 +4,10 @@ const os = require('os');
 const express = require('express');
 const { rateLimit } = require('./ratelimit');
 const { sendError, publicMessage } = require('./errors');
+const config = require('./config');
 
 const router = express.Router();
-const MONITOR_REPO = process.env.MONITOR_REPO || '';
+const MONITOR_REPO = config.monitorRepo;
 const CF_SPEED_URL = 'https://speed.cloudflare.com/__down?bytes=25000000';
 
 function humanBytes(bytes, decimals = 2) {
@@ -116,6 +117,30 @@ async function getMemory() {
   }
 }
 
+// Windows fallback for fs.statfs (absent before Node 20 on win32):
+// ask CIM for the system drive's size/free space.
+async function getDiskWindows() {
+  const systemDrive = (process.env.SystemDrive || 'C:').replace(/[^A-Za-z:]/g, '') || 'C:';
+  const out = await runCommand('powershell', [
+    '-NoProfile', '-NonInteractive', '-Command',
+    `Get-CimInstance Win32_LogicalDisk -Filter "DeviceID='${systemDrive}'" | Select-Object Size,FreeSpace | ConvertTo-Json -Compress`
+  ]);
+  const d = JSON.parse(out);
+  const total = Number(d.Size) || 0;
+  const available = Number(d.FreeSpace) || 0;
+  const used = total - available;
+  return {
+    path: systemDrive,
+    total,
+    available,
+    used,
+    percent: percent(used, total),
+    totalHuman: humanBytes(total),
+    usedHuman: humanBytes(used),
+    availableHuman: humanBytes(available)
+  };
+}
+
 async function getDisk() {
   try {
     const stats = await fs.statfs('/');
@@ -134,8 +159,31 @@ async function getDisk() {
       availableHuman: humanBytes(available)
     };
   } catch (err) {
+    if (process.platform === 'win32') {
+      try {
+        return await getDiskWindows();
+      } catch (winErr) {
+        return { error: publicMessage(winErr) };
+      }
+    }
     return { error: publicMessage(err) };
   }
+}
+
+// Windows fallback: Get-NetAdapterStatistics returns cumulative counters
+// per adapter in the same shape as /proc/net/dev parsing produces.
+async function readNetDevWindows() {
+  const out = await runCommand('powershell', [
+    '-NoProfile', '-NonInteractive', '-Command',
+    'Get-NetAdapterStatistics | Select-Object Name,ReceivedBytes,SentBytes | ConvertTo-Json -Compress'
+  ]);
+  const parsed = JSON.parse(out);
+  const list = Array.isArray(parsed) ? parsed : [parsed];
+  return list.filter(Boolean).map(a => ({
+    name: String(a.Name || ''),
+    rx: Number(a.ReceivedBytes) || 0,
+    tx: Number(a.SentBytes) || 0,
+  })).filter(i => i.name);
 }
 
 async function readNetDev() {
@@ -155,13 +203,22 @@ async function readNetDev() {
     }
     return interfaces;
   } catch (err) {
+    if (process.platform === 'win32') {
+      try {
+        return await readNetDevWindows();
+      } catch {
+        return [];
+      }
+    }
     return [];
   }
 }
 
+// All subprocess calls get a timeout — a wedged docker daemon or hung
+// `gh` auth prompt must fail the request, not pin it forever.
 async function runCommand(cmd, args, options = {}) {
   return new Promise((resolve, reject) => {
-    execFile(cmd, args, { maxBuffer: 10 * 1024 * 1024, ...options }, (err, stdout, stderr) => {
+    execFile(cmd, args, { maxBuffer: 10 * 1024 * 1024, timeout: 30000, ...options }, (err, stdout, stderr) => {
       if (err) {
         const message = stderr?.trim() || err.message;
         reject(new Error(message));

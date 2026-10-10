@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Table2, FileCode, Database as DatabaseIcon } from 'lucide-react';
+import { Table2, FileCode, Database as DatabaseIcon, ListTree, X } from 'lucide-react';
 import DbTree from './DbTree';
 import DataGrid from './DataGrid';
 import SchemaView from './SchemaView';
@@ -12,12 +12,14 @@ export default function Database() {
   const [selectedDb, setSelectedDb] = useState<string | null>(null);
   const [selectedTable, setSelectedTable] = useState<string | null>(null);
   const [panelTab, setPanelTab] = useState<PanelTab>('data');
+  const [treeOpen, setTreeOpen] = useState(false);
 
   const handleSelectTable = (containerId: string, dbName: string, tableName: string) => {
     setSelectedContainer(containerId);
     setSelectedDb(dbName);
     setSelectedTable(tableName);
     setPanelTab('data');
+    setTreeOpen(false);
   };
 
   return (
@@ -32,18 +34,45 @@ export default function Database() {
         />
       </div>
 
-      {/* Mobile tree (collapsible) */}
-      <div className="absolute left-0 top-0 z-30 h-full w-72 border-r border-black/5 bg-surface dark:border-white/10 dark:bg-surface-dark md:hidden">
-        <DbTree
-          selectedContainer={selectedContainer}
-          selectedDb={selectedDb}
-          selectedTable={selectedTable}
-          onSelectTable={handleSelectTable}
-        />
-      </div>
+      {/* Mobile tree: hidden until toggled — a permanent absolute overlay
+          blocked the whole panel on small viewports */}
+      {treeOpen && (
+        <>
+          <div
+            className="fixed inset-0 z-20 bg-black/40 md:hidden"
+            onClick={() => setTreeOpen(false)}
+            aria-hidden="true"
+          />
+          <div className="fixed left-0 top-0 z-30 flex h-full w-72 flex-col border-r border-black/5 bg-surface dark:border-white/10 dark:bg-surface-dark md:hidden">
+            <button
+              onClick={() => setTreeOpen(false)}
+              className="m-2 flex h-9 w-9 items-center justify-center self-end rounded-full bg-black/5 dark:bg-white/10"
+              aria-label="Close database browser"
+            >
+              <X size={16} />
+            </button>
+            <div className="min-h-0 flex-1">
+              <DbTree
+                selectedContainer={selectedContainer}
+                selectedDb={selectedDb}
+                selectedTable={selectedTable}
+                onSelectTable={handleSelectTable}
+              />
+            </div>
+          </div>
+        </>
+      )}
 
       {/* Right: Data / Schema panel */}
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="relative flex min-w-0 flex-1 flex-col">
+        <button
+          onClick={() => setTreeOpen(true)}
+          className="absolute bottom-4 left-4 z-10 flex h-11 w-11 items-center justify-center rounded-full bg-ink text-white shadow-lg dark:bg-surface-dark md:hidden"
+          aria-label="Browse databases"
+          title="Browse databases"
+        >
+          <ListTree size={18} />
+        </button>
         {!selectedTable ? (
           <div className="flex flex-1 items-center justify-center p-8">
             <div className="text-center">

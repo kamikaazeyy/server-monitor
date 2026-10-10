@@ -2,7 +2,6 @@ const { execFile, spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 const https = require('https');
-const http = require('http');
 const express = require('express');
 const { rateLimit } = require('./ratelimit');
 const { sendError, publicMessage } = require('./errors');

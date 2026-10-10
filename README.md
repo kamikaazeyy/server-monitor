@@ -17,8 +17,28 @@ A lightweight, self-hosted server monitoring dashboard built with **Express**, *
 
 ## Quick start
 
-On a Linux server, the installer does everything (deps, client build,
-service user + docker group, `.env`, systemd unit):
+Any Linux distro / architecture (detects distro, init system, and
+installs Node.js if missing):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/kamikaazeyy/server-monitor/main/install.sh | sudo sh
+```
+
+Or with Docker:
+
+```bash
+docker compose up -d
+```
+
+Windows Server / Windows 10-11 (elevated PowerShell — registers an NSSM
+service or Scheduled Task and adds a firewall rule):
+
+```powershell
+.\install.ps1
+```
+
+The classic Linux installer is still there for flag-driven/automation use
+(systemd only):
 
 ```bash
 git clone https://github.com/kamikaazeyy/server-monitor.git /opt/monitoring-dashboard
@@ -69,6 +89,11 @@ npm run dev
   VPN-only network), set `MONITOR_AUTH_DISABLED=true`.
 - Locked out? `sudo bash scripts/reset-auth.sh` deletes `.auth.json` and
   re-opens signup.
+- **OS/arch compatibility**: see `COMPATIBILITY.md` for the supported
+  distro matrix, permission requirements, and graceful-degradation notes
+  (Windows, containers without /proc, Alpine/musl, etc.). Run
+  `sh scripts/test-compatibility-matrix.sh` to smoke-test all distros
+  locally via Docker.
 
 ## Requirements
 

@@ -25,12 +25,28 @@ require docker
 
 # In-container bootstrap, parameterized per distro.
 BOOT_DEBIAN='apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq nodejs npm curl >/dev/null'
-BOOT_RHEL='(dnf install -y -q nodejs npm curl 2>/dev/null || yum install -y -q nodejs npm curl) >/dev/null'
+# RHEL-family images ship curl-minimal, which conflicts with the curl
+# package — curl-minimal already provides /usr/bin/curl, so don't install it.
+BOOT_RHEL='(dnf install -y -q nodejs npm 2>/dev/null || yum install -y -q nodejs npm) >/dev/null'
 BOOT_ALPINE='apk add --no-cache nodejs npm curl >/dev/null'
 
 BOOT_SCRIPT='
 set -e
 %s
+# Distro nodejs can be < 18 (Ubuntu 22.04 ships Node 12) — fall back to
+# the official binary tarball, same as install.sh.
+MAJOR=$(node -v 2>/dev/null | sed "s/v//" | cut -d. -f1)
+if [ -z "${MAJOR:-}" ] || [ "$MAJOR" -lt 18 ]; then
+  case "$(uname -m)" in x86_64) NA=x64;; aarch64|arm64) NA=arm64;; *) NA=;; esac
+  command -v xz >/dev/null 2>&1 || { command -v apt-get >/dev/null 2>&1 && apt-get install -y -qq xz-utils; } \
+    || { command -v apk >/dev/null 2>&1 && apk add --no-cache xz; } \
+    || { command -v dnf >/dev/null 2>&1 && dnf install -y -q xz; } || true
+  NAME=$(curl -fsSL https://nodejs.org/dist/latest-v20.x/ | grep -o "node-v20[0-9.]*-linux-$NA.tar.xz" | head -1)
+  curl -fsSL "https://nodejs.org/dist/latest-v20.x/$NAME" -o /tmp/node.tar.xz
+  mkdir -p /usr/local/node && tar -xJf /tmp/node.tar.xz -C /usr/local/node --strip-components=1
+  export PATH=/usr/local/node/bin:$PATH
+fi
+node -v
 cp -a /src /app
 cd /app
 npm ci --omit=dev --no-audit --no-fund >/dev/null 2>&1 || npm install --omit=dev --no-audit --no-fund >/dev/null

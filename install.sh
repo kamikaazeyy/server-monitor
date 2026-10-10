@@ -102,6 +102,33 @@ if need_node; then
   log "Installing Node.js + build tools via package manager"
   pkg_install $NODE_PKGS $BUILD_PKGS || die "package install failed"
 fi
+
+# Distro packages can be ancient (Ubuntu 22.04 ships Node 12). Fall back
+# to the official binary tarball when the distro gave us < 18.
+install_node_tarball() {
+  case "$ARCH" in
+    x86_64) NODE_ARCH=x64 ;;
+    arm64)  NODE_ARCH=arm64 ;;
+    *) return 1 ;;
+  esac
+  command -v curl >/dev/null 2>&1 || pkg_install curl || return 1
+  command -v xz >/dev/null 2>&1 || pkg_install xz xz-utils 2>/dev/null || true
+  name=$(curl -fsSL "https://nodejs.org/dist/latest-v20.x/" \
+    | grep -o "node-v20[0-9.]*-linux-$NODE_ARCH.tar.xz" | head -1)
+  [ -n "$name" ] || return 1
+  log "Installing $name from nodejs.org"
+  curl -fsSL "https://nodejs.org/dist/latest-v20.x/$name" -o /tmp/node.tar.xz \
+    && mkdir -p /usr/local/node \
+    && tar -xJf /tmp/node.tar.xz -C /usr/local/node --strip-components=1 \
+    && ln -sf /usr/local/node/bin/node /usr/local/bin/node \
+    && ln -sf /usr/local/node/bin/npm /usr/local/bin/npm \
+    && ln -sf /usr/local/node/bin/npx /usr/local/bin/npx \
+    && rm -f /tmp/node.tar.xz
+}
+if need_node; then
+  warn "Distro Node.js is < 18 — using official binary tarball"
+  install_node_tarball || die "could not install Node.js 18+ (install it from https://nodejs.org and re-run)"
+fi
 need_node && die "Node.js 18+ still missing — install it from https://nodejs.org and re-run"
 command -v git >/dev/null 2>&1 || pkg_install git || die "git install failed"
 # node-pty only needs toolchains if no prebuilt binary exists — it's optional, failure is non-fatal

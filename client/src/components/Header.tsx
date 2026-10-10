@@ -55,12 +55,8 @@ export default function Header() {
         >
           <LogOut size={18} className="text-muted" />
         </button>
-        <div className="hidden h-10 w-10 overflow-hidden rounded-full bg-accent md:block">
-          <img
-            src="https://api.dicebear.com/7.x/initials/svg?seed=Admin&background=dfff4f"
-            alt="avatar"
-            className="h-full w-full object-cover"
-          />
+        <div className="hidden h-10 w-10 items-center justify-center rounded-full bg-accent text-sm font-bold text-ink md:flex">
+          A
         </div>
       </div>
     </header>

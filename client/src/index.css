@@ -1,8 +1,23 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@import 'tailwindcss';
 
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --color-bg: #f4f4f0;
+  --color-bg-dark: #0f0f11;
+  --color-surface: #ffffff;
+  --color-surface-dark: #1a1a1e;
+  --color-ink: #0f0f11;
+  --color-muted: #6b6b74;
+  --color-accent: #dfff4f;
+  --color-success: #22c55e;
+  --color-danger: #ef4444;
+  --color-warning: #f59e0b;
+  --font-sans: 'Inter', system-ui, sans-serif;
+  --radius-3xl: 1.5rem;
+  --radius-4xl: 2rem;
+}
 
 :root {
   color-scheme: light dark;

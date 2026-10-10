@@ -70,6 +70,9 @@ class PostgresAdapter extends BaseAdapter {
       database: dbName,
       max: DB_POOL_MAX,
       idleTimeoutMillis: DB_POOL_IDLE_TIMEOUT,
+      // Fail fast when the DB is unreachable (dead container, bad port)
+      // instead of letting pool.connect() queue forever.
+      connectionTimeoutMillis: 5000,
       statement_timeout: STATEMENT_TIMEOUT_MS,
       // Enforce read-only at the session level — not just by convention.
       options: DB_READONLY ? '-c default_transaction_read_only=on' : undefined,
@@ -341,9 +344,11 @@ function extractPortMapping(portJson) {
   if (!portJson || typeof portJson !== 'object') return null;
   for (const [containerPort, bindings] of Object.entries(portJson)) {
     if (Array.isArray(bindings) && bindings.length > 0) {
+      const hostPort = parseInt(bindings[0].HostPort, 10);
+      if (!Number.isInteger(hostPort) || hostPort < 1 || hostPort > 65535) continue;
       return {
         containerPort: parseInt(containerPort.split('/')[0], 10),
-        hostPort: parseInt(bindings[0].HostPort, 10),
+        hostPort,
         hostIp: bindings[0].HostIp || 'localhost',
       };
     }
@@ -379,6 +384,18 @@ function extractCredentials(type, env) {
     default:
       return {};
   }
+}
+
+// A container's port binding controls where we connect — keep it to
+// localhost/IP literals so a weird binding can't aim the pool at an
+// arbitrary internal hostname (SSRF surface).
+function sanitizeDbHost(hostIp) {
+  if (!hostIp || hostIp === '0.0.0.0' || hostIp === '::' || hostIp === 'localhost' || hostIp === '::1') {
+    return 'localhost';
+  }
+  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(hostIp)) return hostIp;
+  if (/^[0-9a-fA-F:]+$/.test(hostIp) && hostIp.includes(':')) return hostIp;
+  return 'localhost';
 }
 
 const DEFAULT_PORTS = {
@@ -449,7 +466,7 @@ async function discoverDatabases() {
         const portMapping = extractPortMapping(JSON.parse(portsJson || '{}'));
         if (portMapping) {
           connInfo.port = portMapping.hostPort;
-          connInfo.host = portMapping.hostIp === '0.0.0.0' ? 'localhost' : portMapping.hostIp;
+          connInfo.host = sanitizeDbHost(portMapping.hostIp);
         }
       } catch (err) {
         // inspect failed — use defaults, mark as needing manual config

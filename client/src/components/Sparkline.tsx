@@ -1,3 +1,4 @@
+import { useId } from 'react';
 import {
   AreaChart,
   Area,
@@ -18,7 +19,9 @@ export default function Sparkline({
   fill = '#0f0f11',
   height = 60,
 }: SparklineProps) {
-  const id = `grad-${color.replace('#', '')}-${Math.random().toString(36).slice(2, 7)}`;
+  // useId keeps the gradient id stable and unique across mounted sparklines;
+  // Math.random() in render produced a new id per render (stale fill refs).
+  const id = `${useId()}-${color.replace('#', '')}`;
   return (
     <div style={{ height }}>
       <ResponsiveContainer width="100%" height="100%">

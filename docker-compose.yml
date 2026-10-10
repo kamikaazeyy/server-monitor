@@ -1,0 +1,50 @@
+# Monitoring Dashboard — turnkey container deployment.
+#   docker compose up -d
+# Then open http://<server-ip>:3000 — first visitor creates the admin account.
+services:
+  monitoring-dashboard:
+    build: .
+    container_name: monitoring-dashboard
+    restart: unless-stopped
+    ports:
+      - "${PORT:-3000}:3000"
+    environment:
+      # Override in a .env file next to this compose file or with -e flags.
+      PORT: 3000
+      HOST: 0.0.0.0
+      MONITOR_REPO: ${MONITOR_REPO:-}
+      # Keep credentials on the named volume, not the container layer.
+      AUTH_FILE: /app/data/.auth.json
+      # Optional builds feature:
+      ENABLE_BUILDS: ${ENABLE_BUILDS:-false}
+      EXPO_TOKEN: ${EXPO_TOKEN:-}
+    volumes:
+      # Host /proc and /sys give real CPU/mem/network/disk metrics from
+      # the host rather than the container's own view.
+      - /proc:/proc:ro
+      - /sys:/sys:ro
+      # Docker socket → Containers, Projects, and Database tabs work.
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      # Persist .auth.json (admin credentials) across rebuilds.
+      - auth-data:/app/data
+    # The in-image `node` user needs the host docker group's GID to use the
+    # socket. On most hosts it is the `docker` group — run
+    # `getent group docker` and set DOCKER_GID to that number if the
+    # Containers tab shows a permission error.
+    group_add:
+      - "${DOCKER_GID:-docker}"
+    read_only: false
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    mem_limit: 512m
+    cpus: 1.0
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      start_period: 15s
+
+volumes:
+  auth-data:

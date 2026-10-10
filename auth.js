@@ -88,8 +88,9 @@ async function signupHandler(req, res) {
   if (!USERNAME_RE.test(name)) {
     return res.status(400).json({ error: 'Username must be 3-32 chars: letters, numbers, . _ -' });
   }
-  if (typeof password !== 'string' || password.length < 12) {
-    return res.status(400).json({ error: 'Password must be at least 12 characters' });
+  // Max length too — scrypt on a megabyte-long password is a CPU DoS.
+  if (typeof password !== 'string' || password.length < 12 || password.length > 256) {
+    return res.status(400).json({ error: 'Password must be 12-256 characters' });
   }
 
   const salt = crypto.randomBytes(16).toString('hex');
@@ -123,9 +124,11 @@ async function loginHandler(req, res) {
     return res.status(400).json({ error: 'No account yet — complete setup first' });
   }
   const { username, password } = req.body || {};
+  // Bound the scrypt input — a huge password is a CPU DoS even when wrong.
+  const boundedPassword = typeof password === 'string' && password.length <= 256 ? password : '';
   // scrypt stays async — a sync version would let login floods block the
   // event loop and stall the whole server.
-  const candidateHash = await hashPassword(password || '', creds.salt);
+  const candidateHash = await hashPassword(boundedPassword, creds.salt);
   const ok =
     safeEqual(String(username || '').trim(), creds.username) &&
     safeEqual(candidateHash, creds.hash);

@@ -8,8 +8,6 @@ import {
   Box,
   Activity,
   RefreshCw,
-  AlertTriangle,
-  Settings,
   Download,
 } from 'lucide-react';
 import { useEffect, useRef } from 'react';
@@ -148,9 +146,23 @@ export default function Dashboard({ setTab }: { setTab?: (tab: string) => void }
     <div className="space-y-6 p-6 md:p-8">
       <div className="flex flex-wrap items-center gap-3">
         <ActionPill icon={RefreshCw} label="Refresh" onClick={refreshOverview} />
-        <ActionPill icon={Download} label="Export report" />
-        <ActionPill icon={AlertTriangle} label="View alerts" />
-        <ActionPill icon={Settings} label="Settings" />
+        <ActionPill
+          icon={Download}
+          label="Export report"
+          onClick={() => {
+            if (!overview) return;
+            const blob = new Blob(
+              [JSON.stringify({ generatedAt: new Date().toISOString(), overview, network, containers: containerSummary(containers), services: serviceSummary(services) }, null, 2)],
+              { type: 'application/json' }
+            );
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `server-report-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+          }}
+        />
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -178,11 +190,11 @@ export default function Dashboard({ setTab }: { setTab?: (tab: string) => void }
 
         <KpiCard
           title="Disk Usage"
-          value={overview ? `${overview.disk.percent.toFixed(1)}%` : '—'}
-          sub={overview ? `${overview.disk.usedHuman} / ${overview.disk.totalHuman}` : ''}
+          value={overview?.disk?.percent != null ? `${overview.disk.percent.toFixed(1)}%` : '—'}
+          sub={overview?.disk?.usedHuman ? `${overview.disk.usedHuman} / ${overview.disk.totalHuman}` : ''}
           icon={<HardDrive size={20} />}
         >
-          {overview && (
+          {overview?.disk?.percent != null && (
             <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-black/10 dark:bg-white/10">
               <div
                 className="h-full rounded-full bg-accent"

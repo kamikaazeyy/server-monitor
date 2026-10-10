@@ -1,0 +1,25 @@
+# https://docs.devin.ai/onboard-devin/environment-yaml
+# Commands run from the repo root.
+maintenance: |
+  # Server deps + client deps; build client/dist (server serves it statically)
+  npm install
+  (cd client && npm install && npm run build)
+knowledge:
+  - name: run
+    contents: |
+      # PORT=3099 HOST=127.0.0.1 MONITOR_AUTH_DISABLED=true node index.js
+      # UI at http://127.0.0.1:3099/ ; MONITOR_AUTH_DISABLED bypasses login for testing
+  - name: lint
+    contents: |
+      # node --check <server-file>.js ; (cd client && npx oxlint)
+  - name: test
+    contents: |
+      # sh scripts/test-compatibility-matrix.sh   # 6-distro docker smoke matrix
+  - name: build
+    contents: |
+      # npm run build   # client production build into client/dist
+  - name: notes
+    contents: |
+      # All /api/* behind requireAuth; new mutating endpoints need rateLimit({...}).
+      # Never commit .env/.auth.json; don't loosen DB_READONLY/CORS/security headers.
+      # node-pty is optional — terminal degrades gracefully when missing.

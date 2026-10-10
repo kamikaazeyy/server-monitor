@@ -133,4 +133,4 @@ try {
 }
 Log "Web UI accessible at http://${ip}:$Port"
 Log "First visitor creates the admin account."
-Log "Note: web terminal is unavailable on Windows (node-pty); metrics use CIM/PowerShell fallbacks."
+Log "Note: terminal works where node-pty builds (ConPTY); it is skipped automatically otherwise."

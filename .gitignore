@@ -24,5 +24,8 @@ coverage/
 .DS_Store
 Thumbs.db
 
+# Installer-generated Windows runner
+scripts/run-windows.ps1
+
 # Local context files
 IMPLEMENTATION_CONTEXT.md

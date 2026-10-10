@@ -17,7 +17,7 @@ features, **Red** = not supported.
 | Fedora | Green | `install.sh` → systemd | — |
 | Alpine (musl) | Amber | `install.sh` → OpenRC | `node-pty` must compile (needs `python3 make g++`); if it fails, terminal is skipped and everything else works. |
 | Arch / Manjaro | Amber | `install.sh` → systemd | Rolling release; distro Node.js tested. |
-| Windows Server 2019/2022, Win10/11 | Amber | `install.ps1` → NSSM service or Scheduled Task | Terminal tab unavailable (node-pty is POSIX-only); disk/network metrics use CIM/PowerShell fallbacks; docker/systemd/gh tabs need their CLIs installed. |
+| Windows Server 2019/2022, Win10/11 | Amber | `install.ps1` → NSSM service or Scheduled Task | Verified on Server 2022 (13/13 checks). Terminal works where node-pty builds (ConPTY), degrades cleanly otherwise; disk via `fs.statfs` (Node ≥18.15) or CIM fallback, network via `Get-NetAdapterStatistics`; docker/systemd/gh tabs need their CLIs installed. |
 | macOS | Amber | `npm install && npm start` | Dev-only; systemd/docker tabs degrade. |
 
 ## Architectures
@@ -35,7 +35,7 @@ features, **Red** = not supported.
 | CPU / memory / uptime | Green (`/proc`) | Green (mount `/proc` for host metrics) | Green (`os.*` fallback, cgroup-unaware) | Green (CIM/`os.*`) |
 | Disk usage | Green | Green | Green | Green (CIM) |
 | Network throughput | Green (`/proc/net/dev`) | Green | Amber (empty list) | Green (`Get-NetAdapterStatistics`) |
-| Web terminal | Green | Green | Green (skipped if node-pty missing) | Red (degrades: tab hidden via `/api/features`) |
+| Web terminal | Green | Green | Green (skipped if node-pty missing) | Amber (works via ConPTY where node-pty builds; tab hidden via `/api/features` otherwise) |
 | Docker containers / projects | Green (`docker` CLI + socket) | Green (mount socket) | Red → inline error | Amber (needs Docker Desktop CLI) |
 | systemd services | Green | Red → inline error | Red → inline error | Red → inline error |
 | GitHub / CI tab | Green (needs `gh` auth) | Amber (needs `gh` in image) | Red → inline error | Amber |

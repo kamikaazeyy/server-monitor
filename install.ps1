@@ -1,4 +1,4 @@
-#requires -Version 5.1
+﻿#requires -Version 5.1
 <#
 .SYNOPSIS
     Windows installer for the Monitoring Dashboard.
@@ -77,8 +77,14 @@ npm run build
 Pop-Location
 
 if (-not (Test-Path ".env") -and (Test-Path ".env.example")) { Copy-Item ".env.example" ".env" }
-$envLine = "PORT=$Port`r`nHOST=0.0.0.0`r`n"
-if (-not (Select-String -Path ".env" -Pattern '^PORT=' -Quiet)) { Add-Content ".env" $envLine }
+foreach ($kv in @("PORT=$Port", "HOST=0.0.0.0")) {
+    $key = $kv.Split('=')[0]
+    if (Select-String -Path ".env" -Pattern "^$key=" -Quiet) {
+        (Get-Content ".env") -replace "^$key=.*", $kv | Set-Content ".env"
+    } else {
+        Add-Content ".env" $kv
+    }
+}
 
 # ---------- service registration ----------
 $nodeExe = (Get-Command node).Source

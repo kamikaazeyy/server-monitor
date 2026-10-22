@@ -5,7 +5,7 @@ const path = require('path');
 const fs = require('fs');
 const cors = require('cors');
 const config = require('./config');
-const monitorRouter = require('./monitor');
+const createMonitorRouter = require('./monitor');
 const dbRouter = require('./db');
 const { requireAuth, socketAuth, statusHandler, signupHandler, loginHandler, logoutHandler } = require('./auth');
 const { rateLimit } = require('./ratelimit');
@@ -91,7 +91,7 @@ app.post('/api/auth/login', rateLimit({ windowMs: 300000, max: 10, message: 'Too
 app.post('/api/auth/logout', logoutHandler);
 app.use('/api', requireAuth);
 
-app.use(monitorRouter);
+app.use(createMonitorRouter(io));
 if (config.enableBuilds) {
   app.use(require('./builds')(io));
 }

@@ -5,10 +5,14 @@ const express = require('express');
 const { rateLimit } = require('./ratelimit');
 const { sendError, publicMessage } = require('./errors');
 const config = require('./config');
+const history = require('./history');
+const checks = require('./checks');
 
 const router = express.Router();
 const MONITOR_REPO = config.monitorRepo;
 const CF_SPEED_URL = 'https://speed.cloudflare.com/__down?bytes=25000000';
+
+history.init();
 
 function humanBytes(bytes, decimals = 2) {
   if (bytes === 0) return '0 B';
@@ -330,6 +334,29 @@ async function getServices() {
   }
 }
 
+// Failed units plus their restart counters — feeds the systemd.failed
+// check. NRestarts comes from `systemctl show`, queried only for the
+// (normally few) failed units.
+async function getFailedServices() {
+  try {
+    const out = await runCommand('systemctl', ['list-units', '--type=service', '--state=failed', '--no-pager', '--plain', '-o', 'json']);
+    const units = JSON.parse(out || '[]');
+    const failed = [];
+    for (const u of units.slice(0, 20)) {
+      let nRestarts = null;
+      try {
+        const v = await runCommand('systemctl', ['show', u.unit, '--property=NRestarts', '--value']);
+        const n = parseInt(v.trim(), 10);
+        if (Number.isInteger(n)) nRestarts = n;
+      } catch { /* restart count is best-effort */ }
+      failed.push({ unit: u.unit, sub: u.sub, description: u.description, nRestarts });
+    }
+    return { failed };
+  } catch (err) {
+    return { error: publicMessage(err) };
+  }
+}
+
 async function getGitHub() {
   const result = { repo: MONITOR_REPO || null, pulls: [], runs: [], error: null };
   if (!MONITOR_REPO) {
@@ -389,7 +416,17 @@ async function runSpeedTest() {
 
 let cpuSnapshot = { usage: 0, cores: 0, load: [0, 0, 0] };
 let netSnapshot = { interfaces: [], timestamp: 0 };
-const history = [];
+let memSnapshot = null;
+let diskSnapshot = null;
+const liveHistory = [];
+
+const HISTORY_RANGES = {
+  '1h': 3600e3,
+  '6h': 6 * 3600e3,
+  '24h': 86400e3,
+  '7d': 7 * 86400e3,
+  '30d': 30 * 86400e3,
+};
 
 async function refreshSnapshots() {
   try {
@@ -401,7 +438,17 @@ async function refreshSnapshots() {
   let memoryPercent = 0;
   try {
     const memory = await getMemory();
+    memSnapshot = memory;
     memoryPercent = memory.percent || 0;
+  } catch {
+    // ignore
+  }
+
+  let diskPercent = null;
+  try {
+    const disk = await getDisk();
+    diskSnapshot = disk;
+    if (!disk.error) diskPercent = disk.percent;
   } catch {
     // ignore
   }
@@ -436,14 +483,17 @@ async function refreshSnapshots() {
 
     const totalRx = netSnapshot.interfaces.reduce((sum, i) => sum + (i.rxSpeed || 0), 0);
     const totalTx = netSnapshot.interfaces.reduce((sum, i) => sum + (i.txSpeed || 0), 0);
-    history.push({
+    const sample = {
       time: now,
       cpu: cpuSnapshot.usage || 0,
       memory: memoryPercent,
+      disk: diskPercent,
       networkRx: totalRx,
       networkTx: totalTx
-    });
-    if (history.length > 120) history.shift();
+    };
+    liveHistory.push(sample);
+    if (liveHistory.length > 120) liveHistory.shift();
+    history.record(sample);
   } catch {
     // ignore
   }
@@ -474,7 +524,10 @@ router.get('/api/monitor/network', async (req, res) => {
 });
 
 router.get('/api/monitor/history', (req, res) => {
-  res.json(history);
+  const range = HISTORY_RANGES[String(req.query.range || '')];
+  // No range = the live 1-second ring buffer (unchanged behaviour);
+  // a range reads the persisted per-minute history.
+  res.json(range ? history.getRange(range) : liveHistory);
 });
 
 router.get('/api/monitor/containers', async (req, res) => {
@@ -536,4 +589,29 @@ router.post('/api/monitor/containers/action', rateLimit({ windowMs: 60000, max: 
   }
 });
 
-module.exports = router;
+let engine = null;
+
+router.get('/api/monitor/checks', (req, res) => {
+  res.json(engine ? engine.list() : { summary: { ok: 0, warn: 0, crit: 0, unknown: 0 }, checks: [], updatedAt: Date.now() });
+});
+
+router.get('/api/monitor/events', (req, res) => {
+  const limit = Math.min(parseInt(req.query.limit, 10) || 100, 500);
+  res.json(engine ? engine.events(limit) : []);
+});
+
+// Called once from index.js with the socket.io server. Starts the
+// checks engine and forwards hard state transitions to connected
+// clients as `check:changed` events.
+module.exports = function createMonitorRouter(io) {
+  checks.init().then(() => {
+    engine = checks.createEngine({
+      snapshot: () => ({ cpu: cpuSnapshot, memory: memSnapshot, disk: diskSnapshot }),
+      containers: getContainers,
+      failedServices: getFailedServices,
+      onEvent: (evt) => { if (io) io.emit('check:changed', evt); },
+    });
+  });
+
+  return router;
+};

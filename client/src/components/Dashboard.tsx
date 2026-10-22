@@ -23,6 +23,8 @@ import KpiCard from './KpiCard';
 import StatusBadge from './StatusBadge';
 import Sparkline from './Sparkline';
 import MiniBar from './MiniBar';
+import Problems from './Problems';
+import Trends from './Trends';
 import { formatUptime } from '../lib/utils';
 import type { ContainerData, ServiceData, HistoryPoint } from '../types';
 
@@ -165,6 +167,8 @@ export default function Dashboard({ setTab }: { setTab?: (tab: string) => void }
         />
       </div>
 
+      <Problems />
+
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <KpiCard
           title="CPU Usage"
@@ -211,6 +215,8 @@ export default function Dashboard({ setTab }: { setTab?: (tab: string) => void }
           icon={<Clock size={20} />}
         />
       </div>
+
+      <Trends />
 
       <div className="grid gap-4 lg:grid-cols-3">
         <KpiCard

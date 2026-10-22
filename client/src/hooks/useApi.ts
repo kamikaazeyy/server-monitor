@@ -9,6 +9,9 @@ import type {
   GitHubData,
   SpeedTestResult,
   HistoryPoint,
+  HistoryRange,
+  ChecksResponse,
+  MonitorEvent,
   EasBuild,
   TriggerBuildResponse,
   DbContainer,
@@ -65,6 +68,15 @@ export const useGitHub = (interval = 60000) =>
 
 export const useHistory = (interval = 1000) =>
   useFetch<HistoryPoint[]>('/api/monitor/history', interval);
+
+export const useHistoryRange = (range: HistoryRange, interval = 30000) =>
+  useFetch<HistoryPoint[]>(`/api/monitor/history?range=${range}`, interval);
+
+export const useChecks = (interval = 15000) =>
+  useFetch<ChecksResponse>('/api/monitor/checks', interval);
+
+export const useMonitorEvents = (limit = 100, interval = 30000) =>
+  useFetch<MonitorEvent[]>(`/api/monitor/events?limit=${limit}`, interval);
 
 export async function runSpeedTest(): Promise<SpeedTestResult> {
   const res = await authFetch('/api/monitor/speedtest', { method: 'POST' });

@@ -115,9 +115,50 @@ export interface HistoryPoint {
   time: number;
   cpu: number;
   memory: number;
+  disk?: number | null;
   networkRx: number;
   networkTx: number;
 }
+
+export type CheckState = 'ok' | 'warn' | 'crit' | 'unknown';
+
+export interface CheckResult {
+  id: string;
+  name: string;
+  category: 'system' | 'services' | 'containers' | 'endpoints';
+  state: CheckState;
+  pending: CheckState | null;
+  attempts: { count: number; needed: number };
+  intervalSec: number;
+  summary: string;
+  value: number | null;
+  since: number;
+  lastOkAt: number | null;
+}
+
+export interface ChecksSummary {
+  ok: number;
+  warn: number;
+  crit: number;
+  unknown: number;
+}
+
+export interface ChecksResponse {
+  summary: ChecksSummary;
+  checks: CheckResult[];
+  updatedAt: number;
+}
+
+export interface MonitorEvent {
+  t: number;
+  id: string;
+  name: string;
+  from: CheckState;
+  to: CheckState;
+  summary: string;
+}
+
+export type HistoryRange = '1h' | '6h' | '24h' | '7d' | '30d';
 
 export interface BuildArtifact {
   packagerUrl?: string;

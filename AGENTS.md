@@ -16,7 +16,14 @@ statically by the same Express server.
 - `auth.js` — first-run signup, login, JWT sessions (`.auth.json`),
   `requireAuth` + `socketAuth`, `MONITOR_AUTH_DISABLED`
 - `ratelimit.js` — per-IP fixed-window limiter for expensive routes
-- `monitor.js` — system metrics + docker/systemd/`gh` data + speedtest
+- `monitor.js` — system metrics + docker/systemd/`gh` data + speedtest;
+  exports a factory `(io) => router` — index.js passes socket.io so
+  check transitions can be pushed as `check:changed` events
+- `checks.js` — checks engine: ok/warn/crit/unknown states, soft→hard
+  promotion (`attempts`), thresholds (`THRESHOLDS`), HTTP/TLS target
+  probes (`CHECK_TARGETS`), JSONL event log under `DATA_DIR`
+- `history.js` — persisted per-minute metric history (JSONL per UTC day
+  under `DATA_DIR/history/`, compaction + retention)
 - `db.js` — DB browser: docker discovery, pg pools (read-only enforced)
 - `builds.js` — optional EAS build trigger/mirror/log streaming
 - `errors.js` — sanitized client error responses
@@ -60,7 +67,9 @@ dotenv itself; set vars via systemd `EnvironmentFile` (default:
 `<repo>/.env`) or export them. Key vars: `PORT`, `HOST`,
 `MONITOR_AUTH_DISABLED`, `AUTH_FILE`, `MONITOR_REPO`, `EXPO_TOKEN`,
 `EAS_PROJECT_DIR`, `ENABLE_BUILDS`, `BUILDS_DIR`, `DB_READONLY`,
-`TERMINAL_MAX_SESSIONS`, `TERMINAL_MAX_PER_IP`.
+`TERMINAL_MAX_SESSIONS`, `TERMINAL_MAX_PER_IP`, `DATA_DIR`,
+`HISTORY_RETENTION_DAYS`, `HISTORY_COMPACT_AFTER_HOURS`, `CHECK_TARGETS`,
+`THRESHOLDS`.
 
 ## Requirements / caveats
 

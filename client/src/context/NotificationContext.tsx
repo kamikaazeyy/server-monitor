@@ -169,10 +169,28 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       }
     };
 
+    // Check-state transitions from the server-side checks engine —
+    // these already survived the soft→hard threshold, so they're worth
+    // an in-app notification (and a browser one if permitted).
+    const handleCheckChanged = (data: { name: string; from: string; to: string; summary: string }) => {
+      const to = String(data.to || '').toLowerCase();
+      if (to === 'ok') {
+        pushNotification('system', `Recovered: ${data.name}`, data.summary || 'Check is OK again.');
+      } else if (to === 'crit') {
+        pushNotification('system', `Critical: ${data.name}`, data.summary || '');
+      } else if (to === 'warn') {
+        pushNotification('system', `Warning: ${data.name}`, data.summary || '');
+      } else {
+        pushNotification('system', `${data.name}: ${to}`, data.summary || '', undefined, true);
+      }
+    };
+
     socket.on('build:status', handleBuildStatus);
+    socket.on('check:changed', handleCheckChanged);
 
     return () => {
       socket.off('build:status', handleBuildStatus);
+      socket.off('check:changed', handleCheckChanged);
       socket.disconnect();
     };
   }, [pushNotification]);
